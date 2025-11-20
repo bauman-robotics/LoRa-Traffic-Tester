@@ -1,0 +1,59 @@
+#pragma once
+
+#include <Arduino.h>
+#include <WiFi.h>
+#include <esp_wifi.h>
+#include "../lora_config.hpp"
+
+class WiFiManager {
+ public:
+  static constexpr const char *TAG = "WiFiManager";
+
+  WiFiManager();
+  void loadSettings();
+  bool connect();
+  void disconnect();
+  bool isConnected();
+  void enable(bool state);
+  bool isEnabled() { return enabled; }
+  void setLastLoRaPacketLen(int len);
+  int getLastLoRaPacketLen();
+  void enablePost(bool state);
+  void setSendPostOnLoRa(bool value) { sendPostOnLoRa = value; }
+  void setPostOnLora(bool value);
+  void setLoRaRssi(int32_t rssi) { loraRssi = rssi; }
+  String getSSID() const { return ssid; }
+  String getAPIKey() const { return apiKey; }
+  String getServerURL() const { return serverProtocol + "://" + serverIP + "/" + serverPath; }
+  String getLastHttpResult() const { return lastHttpResult; }
+  void sendSinglePost();
+
+ private:
+  void httpPostTask();
+  static void httpPostTaskWrapper(void *param);
+  void startPOSTTask();
+  void stopPOSTTask();
+  void doHttpPost();
+
+  void pingTask();
+  static void pingTaskWrapper(void *param);
+  void startPingTask();
+  void stopPingTask();
+  void pingServer();
+
+  String ssid, password;
+  String apiKey, userId, userLocation;
+  String serverProtocol, serverIP, serverPath;
+  bool enabled = false;
+  bool postEnabled = POST_INTERVAL_EN;
+  volatile bool sendPostOnLoRa = false;
+  volatile bool post_on_lora_mm = POST_EN_WHEN_LORA_RECEIVED;
+  int32_t loraRssi = 0;
+  TaskHandle_t httpTaskHandle = nullptr;
+  TaskHandle_t pingTaskHandle = nullptr;
+  String lastHttpResult = "No posts yet";
+
+#if WIFI_DEBUG_FIXES
+  static void WiFiEvent(WiFiEvent_t event);
+#endif
+};

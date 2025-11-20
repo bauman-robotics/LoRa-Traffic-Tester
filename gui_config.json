@@ -1,0 +1,16 @@
+{
+    "_guide":              "This file contains default settings for LoRa Transceiver GUI",
+    "_guide_post_mode":    "time: Periodic POST (every 10 sec), lora: POST only on LoRa receive",
+    "_guide_wifi_enabled": "true: WiFi checkbox checked by default",
+    "_guide_status_enabled": "false: Status sending disabled by default",
+    "_guide_log_short":    "true: Short log mode (filter non-LoRa messages)",
+    "wifi_enabled":        true,
+    "post_mode":           "time",
+    "lora_status_enabled": false,
+    "lora_status_interval": "30",
+    "log_short":           true,
+    "gain":                "20",
+    "freq":                "869.075",
+    "spreading_factor":    "11",
+    "bandwidth":           "250"
+}

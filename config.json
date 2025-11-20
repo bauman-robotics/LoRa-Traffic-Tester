@@ -1,0 +1,12 @@
+{
+  "venv_activate": "venv/bin/activate",
+  "wifi_enabled": true
+  ,"post_mode": "time"
+  ,"status_enabled": false
+  ,"status_interval": "30"
+  , "log_short": true
+  , "gain": "20"
+  , "freq": "869.075"
+  , "spreading_factor": "11"
+  , "bandwidth": "250" 
+}
