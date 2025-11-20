@@ -4,6 +4,8 @@
 
 ## Описание
 
+![Grafana Logs](pics/Grafana_logs.png)
+
 Этот проект реализует LoRa трансивер для беспроводной связи на базе ESP32-C3 и модуля SX1262. Поддерживает передачу и прием данных через Serial интерфейс, управление через команды, сохранение данных во flash память.
 
 Проект основан на [mini_lora_transceiver](https://github.com/lukuky64/mini_lora_transceiver/) с добавлением графического интерфейса для управления.
@@ -151,4 +153,3 @@ python3 gui.py
 - **RadioLib** библиотека для LoRa
 - **PlatformIO** для сборки
 - **ESP-IDF** framework
-
