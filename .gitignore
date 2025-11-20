@@ -31,3 +31,6 @@ Thumbs.db
 
 # Build artifacts
 build/
+
+#meshtastic src 
+mesh_src/
