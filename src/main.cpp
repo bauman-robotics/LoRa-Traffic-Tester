@@ -7,6 +7,7 @@ Control* control = nullptr;
 void setup() {
   delay(1000);
   ESP_LOGI("Main", "Starting setup...");
+  ESP_LOGI("Main", "DUTY_CYCLE_RECEPTION=%d (0=continuous receive, 1=duty cycle like Meshtastic)", DUTY_CYCLE_RECEPTION);
   control = new Control();
   control->setup();
   control->begin();

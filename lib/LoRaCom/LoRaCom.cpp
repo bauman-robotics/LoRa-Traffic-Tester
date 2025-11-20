@@ -3,6 +3,10 @@
 #include "../lora_config.hpp"
 #include "../wifi_manager/wifi_manager.hpp"
 
+// Meshtastic-style duty cycle parameters
+#define MESHTASTIC_PREAMBLE_LENGTH 8
+#define MESHTASTIC_RADIOLIB_IRQ_RX_FLAGS RADIOLIB_IRQ_RX_DONE | RADIOLIB_IRQ_PREAMBLE_DETECTED | RADIOLIB_IRQ_HEADER_VALID
+
 extern void* wifi_manager_global;
 extern volatile bool force_lora_trigger;
 
@@ -85,7 +89,15 @@ bool LoRaCom::getMessage(char *buffer, size_t len) {
       TxFinished = false;
       unsigned long txDuration = millis() - txStartTime;  // Calculate transmission duration
       int state = radioUnion.sRadio->finishTransmit();
+#if DUTY_CYCLE_RECEPTION == 1
+      // Use Meshtastic-style duty cycle reception for power efficiency
+      ESP_LOGD(TAG, "Using duty cycle reception after TX");
+      state |= radioUnion.sRadio->startReceiveDutyCycleAuto(MESHTASTIC_PREAMBLE_LENGTH, 8, MESHTASTIC_RADIOLIB_IRQ_RX_FLAGS);
+#else
+      // Use continuous receive for traffic testing
+      ESP_LOGD(TAG, "Using continuous reception after TX");
       state |= radioUnion.sRadio->startReceive();
+#endif
       TxMode = false;
       if (state == RADIOLIB_ERR_NONE) {
         ESP_LOGI(TAG, "Tx done: %lu ms SF%d BW%.0f", txDuration, currentSF, currentBW);

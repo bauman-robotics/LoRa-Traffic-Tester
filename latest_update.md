@@ -548,3 +548,92 @@ Cleaner логи без лишних префиксов и wrap-around. GUI си
 ### Тестирование
 Проверено с Meshtastic кодом: SHORT_FAST/DOUBLE preset дает BW=250, SF=11, что мы можем принимать с freq=869.075, sync=0x2B.
 Для базовой настройки используется freq=869.075.
+
+## 29. Реализация выбора режима приема (DUTY_CYCLE_RECEPTION)
+
+### Описание изменений
+- Добавлен define `DUTY_CYCLE_RECEPTION 0` в `lib/lora_config.hpp` для выбора режима приема
+- Реализована условная логика в `LoRaCom::getMessage()` для переключения между режимами
+- При `DUTY_CYCLE_RECEPTION = 1` используется `startReceiveDutyCycleAuto()` с Meshtastic параметрами
+- При `DUTY_CYCLE_RECEPTION = 0` сохраняется `startReceive()` (непрерывный прием)
+
+### Технические детали
+**Параметры duty cycle:**
+- Preamble length: 8 символов
+- IRQ flags: RX_DONE | PREAMBLE_DETECTED | HEADER_VALID
+- Метод: `startReceiveDutyCycleAuto(preambleLength, 8, flags)`
+
+**Код переключения:**
+```cpp
+#if DUTY_CYCLE_RECEPTION == 1
+    // Duty cycle режим для экономии энергии
+    state |= radioUnion.sRadio->startReceiveDutyCycleAuto(MESHTASTIC_PREAMBLE_LENGTH, 8, MESHTASTIC_RADIOLIB_IRQ_RX_FLAGS);
+#else
+    // Continuous режим для тестирования
+    state |= radioUnion.sRadio->startReceive();
+#endif
+```
+
+### Тестирование и наблюдения
+- DUTY_CYCLE_RECEPTION изменен с 0 на 1
+- **Результат:** ток потребления не изменился, количество принимаемых пакетов осталось прежним (5-6 пакетов в минуту)
+- **Проблема:** несмотря на реализацию логики, поведение не изменилось
+- Возможные причины:
+  - Функция `startReceiveDutyCycleAuto()` недоступна в версии RadioLib
+  - Параметры duty cycle несовместимы с ESP32-C3/SX1262
+  - Логика переключения не активируется в правильных местах
+
+### Следующие шаги
+- Проверить наличие метода `startReceiveDutyCycleAuto()` в RadioLib
+- Добавить больше отладочных логов для подтверждения вызова функции
+- Попробовать альтернативную реализацию energy-efficient приема
+
+## 27. Серверная инфраструктура для сбора и визуализации данных LoRa
+
+### Описание изменений
+- Создан отдельный каталог `server_backend/` для полной серверной инфраструктуры
+- Добавлен подробный руковод `server_deployment_guide.md` на русском языке
+- Реализован Python скрипт `data_collector.py` с Flask сервером для приема POST запросов от LoRa устройств
+- Добавлены файлы для Docker развертывания: `docker-compose.yml`, `Dockerfile`, `requirements_server.txt`
+- Настроена база данных PostgreSQL с таблицей `lora_packets` для хранения RSSI, SNR, частоты, полосы, SF
+- Настроена Grafana для визуализации данных в реальном времени
+- Добавлена возможность мониторинга работоспособности `/health` endpoint
+
+### Технические детали
+- **Flask сервер** работает на порту 5000, принимает JSON данные от LoRa устройств
+- **PostgreSQL** хранит пакеты с метками времени, RSSI, SNR и параметрами LoRa
+- **Grafana** конфигурируется с PostgreSQL datasource и dashboard для мониторинга
+- **Docker** позволяет развернуть все сервисы одной командой `docker-compose up -d`
+
+### Обоснование
+Создает полнофункциональную инфраструктуру для анализа LoRa трафика с визуализацией и хранением данных. Дополняет аппаратную часть проектом встроенным хранением и анализом.
+
+## 28. Режим duty cycle приема (экономия энергии)
+
+### Описание изменений
+- Добавлен define `DUTY_CYCLE_RECEPTION 0` в `lib/lora_config.hpp` для выбора режима приема
+- Реализация Meshtastic-style duty cycle режима для экономии энергии
+- При `DUTY_CYCLE_RECEPTION = 1` используется сканирование каналов (Channel Activity Detection)
+- При `DUTY_CYCLE_RECEPTION = 0` (по умолчанию) применяется непрерывный прием для тестирования нагрузки
+
+### Технические детали
+**Для continuous mode (DUTY_CYCLE_RECEPTION = 0):**
+- `radioUnion.sRadio->startReceive()` - постоянный прием всех пакетов
+
+**Для duty cycle mode (DUTY_CYCLE_RECEPTION = 1):**
+- `radioUnion.sRadio->startReceiveDutyCycleAuto(MESHTASTIC_PREAMBLE_LENGTH, 8, MESHTASTIC_RADIOLIB_IRQ_RX_FLAGS)`
+  - `MESHTASTIC_PREAMBLE_LENGTH = 8` (символов преамбулы)
+  - `MESHTASTIC_RADIOLIB_IRQ_RX_FLAGS = RADIOLIB_IRQ_RX_DONE | RADIOLIB_IRQ_PREAMBLE_DETECTED | RADIOLIB_IRQ_HEADER_VALID`
+
+
+**Функции фильтрации шума:**
+- `receiveDetected(irq, RADIOLIB_SX126X_IRQ_HEADER_VALID, RADIOLIB_SX126X_IRQ_PREAMBLE_DETECTED)`
+- Применяет timeout для исключения ложных срабатываний преамбулы
+
+- Применяет timeout для исключения ложных срабатываний преамбулы
+
+**После завершения передачи (в обоих режимах):**
+- После `TxMode = false` возвращается к выбранному режиму приема
+
+### Обоснование
+Позволяет выбрать между максимальной чувствительностью (для тестирования) и эффективностью энергопотребления (для реального использования). Duty cycle оптимален для IoT приложений с батарейным питанием.

@@ -25,7 +25,7 @@
 extern unsigned long status_Interval;
 
 // WiFi configuration
-#define WIFI_ENABLE 0  // Enable WiFi functionality (runtime control via GUI)
+#define WIFI_ENABLE 1  // Enable WiFi functionality (runtime control via GUI)
 #define WIFI_USE_CUSTOM_MAC 0  // Use custom random MAC address for WiFi (0=use ESP default, 1=generate random)
 #define WIFI_USE_FIXED_MAC 0  // If 1, use fixed MAC address specified below
 //#define WIFI_FIXED_MAC_ADDRESS {0x1c, 0xdb, 0xd4, 0xc6, 0x77, 0xf0}  // Fixed MAC address bytes (used if WIFI_USE_FIXED_MAC=1)
@@ -51,7 +51,7 @@ extern unsigned long status_Interval;
 #endif
 
 #define POST_INTERVAL_EN 0  // Enable periodic POST requests (can be controlled via GUI)
-#define POST_EN_WHEN_LORA_RECEIVED 0  // Send POST only when LoRa packet received
+#define POST_EN_WHEN_LORA_RECEIVED 1  // Send POST only when LoRa packet received
 #define POST_HOT_AS_RSSI 1  // If 1, use RSSI as hot parameter when POST triggered by LoRa receive; if 0, use successful POST count
 #define SERVER_PING_ENABLED 0  // Enable periodic ping of the server
 
@@ -64,7 +64,7 @@ extern unsigned long status_Interval;
 #define COLD_INITIAL 1
 
 // Periodic LoRa status sending settings
-#define LORA_STATUS_ENABLED 1  // Enable/disable periodic LoRa status packets
+#define LORA_STATUS_ENABLED 0  // Enable/disable periodic LoRa status packets
 #define LORA_STATUS_INTERVAL_SEC 10  // Default interval for LoRa status packets in seconds
 #define LORA_STATUS_SHORT_PACKETS 1  // 0=full packet, 1=short 2-byte counter
 
@@ -75,6 +75,9 @@ extern unsigned long status_Interval;
 #define MESH_BANDWIDTH 250  // Bandwidth for Mesh (original narrow)
 #define MESH_SPREADING_FACTOR 11  // SF for Mesh (matched to Meshtastic for trace packets)
 #define MESH_CODING_RATE 5  // CR for Mesh
+
+// Reception mode selection
+#define DUTY_CYCLE_RECEPTION 1  // If 1, use Meshtastic-style duty cycle reception (energy efficient); if 0, use continuous receive (for traffic testing)
 
 // If 1, send LoRa packet payload length as cold value in POST request (when POST_EN_WHEN_LORA_RECEIVED=1)
 #define COLD_AS_LORA_PAYLOAD_LEN 1

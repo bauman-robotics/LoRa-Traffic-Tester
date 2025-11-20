@@ -10,11 +10,13 @@ import shutil
 import sys
 import json
 
-def run_command(cmd, cwd=None):
+def run_command(cmd, cwd=None, env=None):
     """Run a shell command and return True if successful."""
     try:
-        result = subprocess.run(cmd, shell=True, cwd=cwd, check=True, capture_output=True, text=True)
+        result = subprocess.run(cmd, shell=True, cwd=cwd, check=True, capture_output=True, text=True, env=env)
         print(result.stdout)
+        if result.stderr:
+            print(result.stderr)
         return True
     except subprocess.CalledProcessError as e:
         print(f"Error running command: {cmd}")
@@ -22,10 +24,10 @@ def run_command(cmd, cwd=None):
         print(f"stderr: {e.stderr}")
         return False
 
-def check_pio():
+def check_pio(env=None):
     """Check if PlatformIO is installed."""
     try:
-        subprocess.run(['pio', '--version'], check=True, capture_output=True)
+        subprocess.run(['pio', '--version'], check=True, capture_output=True, env=env)
         return True
     except (subprocess.CalledProcessError, FileNotFoundError):
         return False
@@ -39,29 +41,24 @@ def load_config():
     else:
         print("config.json not found. Using default paths.")
         return {
-            "esp_idf_export": "/home/ypc/esp/esp-idf/export.sh",
-            "esp_idf_tools": "/home/ypc/esp/esp-idf/tools",
-            "esp_idf_python": "/home/ypc/.espressif/python_env/idf5.4_py3.12_env/bin/python3",
-            "venv_activate": "venv/bin/activate",
-            "esptool_path": "/home/ypc/esp/esp-idf/components/esptool_py/esptool/esptool.py"
+            "venv_activate": "venv/bin/activate"
         }
 
-def check_venv():
-    """Check if virtual environment is activated."""
-    # Check if python3 is from venv
-    try:
-        result = subprocess.run(['which', 'python3'], capture_output=True, text=True)
-        if 'venv/bin/python3' in result.stdout or 'venv\\Scripts\\python.exe' in result.stdout:
-            return True
-    except:
-        pass
-    return False
+def activate_venv_if_needed(config):
+    """Activate virtual environment in the current process."""
+    venv_activate = config.get('venv_activate', 'venv/bin/activate')
+    venv_bin = os.path.dirname(os.path.abspath(venv_activate))
+    venv_root = venv_bin.replace('/bin', '')
 
-def activate_venv(config):
-    """Activate virtual environment and restart the script."""
-    print("Activating virtual environment and restarting script...")
-    venv_activate = config['venv_activate']
-    os.execlp('bash', 'bash', '-c', f'source {venv_activate} && python3 build_script.py')
+    # Set environment variables for venv
+    # IMPORTANT: Do NOT set PYTHONHOME when using venv - it causes encoding issues
+    if venv_bin not in os.environ.get('PATH', ''):
+        os.environ['PATH'] = venv_bin + ':' + os.environ.get('PATH', '')
+
+    os.environ['VIRTUAL_ENV'] = venv_root
+
+    print(f"Activated virtual environment: {venv_root}")
+    return os.environ.copy()
 
 def parse_defines():
     """Parse define values from lib/lora_config.hpp."""
@@ -87,16 +84,12 @@ def main():
     print("Loaded configuration:")
     print(json.dumps(config, indent=2))
 
-    # Check virtual environment
-    if not check_venv():
-        print("Virtual environment not activated.")
-        activate_venv(config)
-    else:
-        print("Virtual environment is activated.")
+    # Activate virtual environment if needed
+    env = activate_venv_if_needed(config)
 
     defines = parse_defines()
     print("Current firmware defines:")
-    for key in ['LORA_FREQUENCY', 'LORA_POWER', 'LORA_STATUS_ENABLED', 'LORA_STATUS_INTERVAL_SEC', 'LORA_STATUS_SHORT_PACKETS', 'WIFI_ENABLE', 'WIFI_DEBUG_FIXES', 'FAKE_LORA', 'POST_INTERVAL_EN', 'POST_EN_WHEN_LORA_RECEIVED', 'POST_HOT_AS_RSSI', 'MESH_COMPATIBLE']:
+    for key in ['LORA_FREQUENCY', 'LORA_POWER', 'LORA_STATUS_ENABLED', 'LORA_STATUS_INTERVAL_SEC', 'LORA_STATUS_SHORT_PACKETS', 'WIFI_ENABLE', 'WIFI_DEBUG_FIXES', 'FAKE_LORA', 'POST_INTERVAL_EN', 'POST_EN_WHEN_LORA_RECEIVED', 'POST_HOT_AS_RSSI', 'MESH_COMPATIBLE', 'DUTY_CYCLE_RECEPTION']:
         value = defines.get(key, 'Unknown')
         if key == 'LORA_FREQUENCY':
             value = value.replace('f', '') + ' MHz'
@@ -121,18 +114,27 @@ def main():
 
     print("Building LoRa Transceiver project...")
 
-    # Use PlatformIO
-    if not check_pio():
-        print("PlatformIO CLI is not installed.")
-        print("Install it with: pip install platformio")
-        print("Then run: python3 build_script.py")
-        sys.exit(1)
+    # Use PlatformIO with venv environment
+    if not check_pio(env=env):
+        print("PlatformIO CLI is not found. Installing in virtual environment...")
+        install_cmd = sys.executable + " -m pip install platformio"
+        if not run_command(install_cmd, env=env):
+            print("Failed to install PlatformIO. Please install it manually:")
+            print("source venv/bin/activate && pip install platformio")
+            sys.exit(1)
+
+        # Check again after installation
+        if not check_pio(env=env):
+            print("PlatformIO installation failed or not found in PATH.")
+            print("Please install PlatformIO manually in the virtual environment:")
+            print("source venv/bin/activate && pip install platformio")
+            sys.exit(1)
 
     build_cmd = 'pio run'
     build_cwd = project_root
 
-    # Run build
-    if not run_command(build_cmd, cwd=build_cwd):
+    # Run build with venv
+    if not run_command(build_cmd, cwd=build_cwd, env=env):
         print("Build failed!")
         sys.exit(1)
 
