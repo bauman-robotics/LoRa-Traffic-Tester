@@ -4,7 +4,7 @@
 #include "../wifi_manager/wifi_manager.hpp"
 
 // Meshtastic-style duty cycle parameters
-#define MESHTASTIC_PREAMBLE_LENGTH 8
+#define MESHTASTIC_PREAMBLE_LENGTH 20 // было 8 - не правильно. 
 #define MESHTASTIC_RADIOLIB_IRQ_RX_FLAGS RADIOLIB_IRQ_RX_DONE | RADIOLIB_IRQ_PREAMBLE_DETECTED | RADIOLIB_IRQ_HEADER_VALID
 
 extern void* wifi_manager_global;
