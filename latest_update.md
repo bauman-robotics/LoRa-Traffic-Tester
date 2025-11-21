@@ -539,3 +539,9 @@ Cleaner логи без лишних префиксов и wrap-around. GUI си
 - Для Long Fast preset preamble length может быть разным от Short Fast
 -уНужпв проверка правильных параметров для каждого preset'а отдельно</result>
 </write_to_file>
+
+## 29. Финальные исправления duty cycle режима
+
+### Критические изменения в коде:
+- Изменить MESHTASTIC_PREAMBLE_LENGTH с 8 на 20 в lib/LoRaCom/LoRaCom.cpp
+- Это критически важно для корректной работы duty cycle с Long Fast preset
