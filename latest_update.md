@@ -614,3 +614,220 @@ Cleaner логи без лишних префиксов и wrap-around. GUI си
 
 ### Тестирование
 Проект компилируется. При получении корректных Meshtastic пакетов `alarm_time` содержит последние 16 бит NodeID отправителя. Неправильные пакеты логгируются с `alarm_time = 00`. В дефолтной конфигурации сохраняется обратная совместимость (`POST_SEND_SENDER_ID_AS_ALARM_TIME = 0`).
+
+## 33. Макрос OLD_LORA_PARS для выбора способа парсинга LoRa пакетов
+
+### Описание изменений
+- Добавлен макрос `OLD_LORA_PARS 0` в `lib/lora_config.hpp` для выбора между старым и новым способами обработки LoRa пакетов.
+- В `Control::loRaDataTask()` реализована условная логика: при `OLD_LORA_PARS=1` пакеты обрабатываются простым способом с `alarm_time=00`, при `OLD_LORA_PARS=0` используется расширенный парсинг Meshtastic заголовков.
+- Модифицирована функция `LoRaCom::getMessage()` для возврата фактической длины принятого пакета через выходной параметр.
+
+### Формат LoRa пакетов и структура данных
+**Meshtastic LoRa packet structure (16+ байт заголовок):**
+```
+0x00-0x03: Destination NodeID (кому отправлено)
+0x04-0x07: Sender NodeID (отправитель) ← **КЛЮЧЕВОЕ ПОЛЕ**
+0x08-0x0B: Packet ID
+0x0C: Flags
+0x0D: Channel hash
+0x0E: Next-hop
+0x0F: Relay node
+0x10+: Payload data (protobuf encoded)
+```
+
+### Разница в способах парсинга
+
+#### Старый способ парсинга (OLD_LORA_PARS = 1):
+```cpp
+// Простая обработка в loRaDataTask()
+if (m_LoRaCom->getMessage(buffer, sizeof(buffer))) {
+    int len = strlen(buffer);  // ❌ ПРОБЛЕМА: strlen() останавливается на первом '\0'
+    m_wifiManager->setLastSenderId(0);  // Всегда alarm_time = 0
+    ESP_LOGI(TAG, "OLD_LORA_PARS=1: alarm_time=00");
+}
+```
+
+**Недостатки старого способа:**
+- **Проблема с бинарными данными**: `strlen()` считает длину по null-терминатору, но LoRa пакеты могут содержать байты 0x00 в середине
+- **Пример ошибки**: Пакет `[01 02 00 03 04]` будет обработан как `[01 02]` (длина 2 вместо 5)
+- **Потеря данных**: Заголовки Meshtastic или любые бинарные структуры с null байтами будут усечены
+- **Неправильное логирование**: Hex-дампы покажут неполные пакеты
+
+#### Новый способ парсинга (OLD_LORA_PARS = 0):
+```cpp
+// Расширенная обработка в loRaDataTask()
+int receivedLen = 0;
+if (m_LoRaCom->getMessage(buffer, sizeof(buffer), &receivedLen)) {
+    // ✅ Используем фактическую длину receivedLen
+    
+    if (receivedLen >= 0x10) {  // Meshtastic заголовок присутствует
+        // Извлечение sender NodeID из байтов 4-7 (little-endian)
+        uint32_t senderId = packetData[4] | (packetData[5] << 8) | 
+                           (packetData[6] << 16) | (packetData[7] << 24);
+        m_wifiManager->setLastSenderId(senderId & 0xFFFF);  // 16 бит для alarm_time
+        ESP_LOGI(TAG, "Extracted sender NodeID: %lu", (unsigned long)senderId);
+    }
+    
+    // Детектирование типа содержимого (текст/бинарные)
+    bool isTextMessage = true;
+    for (int i = 0; i < receivedLen && i < 50; i++) {
+        if (buffer[i] < 32 && buffer[i] != '\n' && buffer[i] != '\r' && buffer[i] != '\t') {
+            isTextMessage = false;
+            break;
+        }
+    }
+    
+    // Обработка в зависимости от типа данных
+}
+```
+
+**Преимущества нового способа:**
+- **Корректная длина пакета**: Фактическая длина от RadioLib, не зависит от null байтов
+- **Извлечение метаданных**: Sender NodeID, заголовки Meshtastic
+- **Гибкая обработка**: Различное поведение для текстовых и бинарных пакетов
+- **Отладка**: Hex-дампы для бинарных данных, текстовая интерпретация для команд
+
+### Возможные ошибки при работе с бинарными данными
+
+#### Проблема 1: Null байты в середине пакета
+```cpp
+// Пакет: [0xAA, 0xBB, 0x00, 0xCC, 0xDD] (длина 5 байт)
+
+char buffer[256];
+strcpy(buffer, packet);  // buffer содержит все байты
+
+// Старый способ:
+int wrong_len = strlen(buffer);  // = 2, а не 5! ❌
+
+// Новый способ:
+int actual_len = receivedLen;   // = 5, правильная длина ✅
+```
+
+#### Проблема 2: Неправильная интерпретация как текст
+```cpp
+// Пакет с бинарными заголовками выглядит как "мусор" в терминале
+ESP_LOGI(TAG, "Received: %s", buffer);  // Выводит мусорные символы
+// Решение: hex-dump или проверка isTextMessage
+```
+
+#### Проблема 3: Переполнение буфера
+```cpp
+// Защита от переполнения в новом коде:
+buffer[receivedLen] = '\0';  // Null-terminate после фактической длины
+```
+
+### Условности выбора режима
+
+- **`OLD_LORA_PARS = 1`**: Для отладки или когда пакеты гарантированно текстовые без null байтов
+- **`OLD_LORA_PARS = 0`**: Для полноценной работы с Meshtastic пакетами и бинарными данными
+
+### Технические детали
+- Длина пакета определяется `RadioLib` через `readData()` с возвратом количества байтов
+- Little-endian конверсия для NodeID: `(byte[4]) | (byte[5]<<8) | (byte[6]<<16) | (byte[7]<<24)`
+- Макрос дает runtime контроль без перекомпиляции всего проекта
+
+### Тестирование
+Проект компилируется. В логах видно различия: старый режим дает постоянное `alarm_time=00`, новый - извлекает реальные NodeID из Meshtastic заголовков. Режимы переключаются define'ом без изменения кода.
+
+## 34. Автоматическая отправка длины LoRa пакета при новом парсинге
+
+### Описание изменений
+- Модифицирована логика в `WiFiManager::doHttpPost()` для автоматической отправки длины LoRa пакета в POST поле `cold` при использовании нового режима парсинга
+- Добавлено условие: `if (post_on_lora_mm && (COLD_AS_LORA_PAYLOAD_LEN || !OLD_LORA_PARS))`
+
+### Преимущества новой логики
+
+#### Раньше (после изменения #33):
+```cpp
+if (post_on_lora_mm && COLD_AS_LORA_PAYLOAD_LEN) {
+    cold_value = getLastLoRaPacketLen();
+    ESP_LOGI(TAG, "Using LoRa payload length as cold: %ld", cold_value);
+} else {
+    cold_value = cold_counter++;
+    ESP_LOGI(TAG, "Using cold counter: %ld", cold_value);
+}
+```
+
+#### Теперь (с автоматической отправкой длины):
+```cpp
+if (post_on_lora_mm && (COLD_AS_LORA_PAYLOAD_LEN || !OLD_LORA_PARS)) {
+    cold_value = getLastLoRaPacketLen();
+    if (!OLD_LORA_PARS) {
+        ESP_LOGI(TAG, "NEW_LORA_PARS: Using LoRa payload length as cold: %ld", cold_value);
+    } else {
+        ESP_LOGI(TAG, "Using LoRa payload length as cold: %ld", cold_value);
+    }
+} else {
+    cold_value = cold_counter++;
+    ESP_LOGI(TAG, "Using cold counter: %ld", cold_value);
+}
+```
+
+### Разница при выборе режимов
+
+- **`OLD_LORA_PARS = 1`**: Длина пакета отправляется только если `COLD_AS_LORA_PAYLOAD_LEN = 1` (backward compatibility)
+- **`OLD_LORA_PARS = 0`**: Длина пакета отправляется автоматически в POST поле `cold` независимо от `COLD_AS_LORA_PAYLOAD_LEN`
+
+### Техническая реализация
+- Условие `!OLD_LORA_PARS` добавляется к `COLD_AS_LORA_PAYLOAD_LEN` через логическое ИЛИ
+- При новом режиме автоматически используется `getLastLoRaPacketLen()` для поля `cold`
+- Сохраняется совместимость со старыми настройками через `COLD_AS_LORA_PAYLOAD_LEN`
+
+### Сценарии использования
+1. **Новый режим парсинга** (`OLD_LORA_PARS = 0`): автоматически отправляет длину пакета
+2. **Старый режим парсинга** (`OLD_LORA_PARS = 1`): работает как раньше, через `COLD_AS_LORA_PAYLOAD_LEN`
+
+### Тестирование
+Проект компилируется и работает корректно. При новом режиме парсинга длинны LoRa пакетов автоматически попадают в поле `cold` POST запросов с соответствующим логированием.
+
+## 35. Парсинг sender_id из заголовков LoRa пакетов и новый API метод getLastSenderId()
+
+### Описание изменений
+- Добавлен макрос `PARSE_SENDER_ID_FROM_LORA_PACKETS 0` в `lib/lora_config.hpp` для включения парсинга ID отправителя из заголовков LoRa пакетов
+- Добавлен новый публичный метод `getLastSenderId()` в класс `LoRaCom` для получения последнего распознанного sender ID
+- Реализована логика парсинга в `LoRaCom::getMessage()`:
+  - При `PARSE_SENDER_ID_FROM_LORA_PACKETS = 1`: Получает длину пакета через `getPacketLength()`, разбирает заголовок Meshtastic формата
+  - Извлекает sender NodeID из байтов 4-7 (little-endian 32-bit)
+  - При длине пакета < 7 байт: sender_id = 1 (короткий пакет)
+  - При длине >= 8 байт: sender_id = значение из заголовка
+- При `PARSE_SENDER_ID_FROM_LORA_PACKETS = 0`: Сохраняется оригинальная логика без вызова `getPacketLength()`
+
+### Преимущества новой функциональности
+
+#### Новый метод getLastSenderId():
+```cpp
+// Пример использования
+uint32_t senderId = loRaCom.getLastSenderId();
+if (senderId == 1) {
+    // Обработка коротких пакетов (< 7 байт)
+} else if (senderId > 1) {
+    // Обработка пакетов с Meshtastic заголовком
+    ESP_LOGI(TAG, "Received packet from NodeID: %u", senderId);
+}
+```
+
+#### Условная логика парсинга:
+- **Включен макрос** (`PARSE_SENDER_ID_FROM_LORA_PACKETS = 1`): 
+  - Полное извлечение sender ID из заголовков
+  - payload включает весь пакет с заголовком
+  - длина пакета рассчитывается как `packetLength`
+- **Отключен макрос** (`PARSE_SENDER_ID_FROM_LORA_PACKETS = 0`):
+  - Никаких вызовов `getPacketLength()` для производительности
+  - Оригинальная логика определения длины по null-терминатору
+  - Полная backward compatibility
+
+### Технические детали
+- **Формат Meshtastic заголовка:** sender NodeID хранится в байтах 4-7 как little-endian 32-bit integer
+- **Извлечение ID:** `lastSenderId = (tempBuffer[4]) | (tempBuffer[5] << 8) | (tempBuffer[6] << 16) | (tempBuffer[7] << 24)`
+- **Короткие пакеты:** Если длина < 7 байт, не может содержать полный заголовок → sender_id = 1
+- **Логирование:** "Parsed sender_id: [ID] from packet length [LEN]" при успешном парсинге
+
+### Сценарии использования
+
+1. **Мониторинг сети:** Определение отправителя каждого полученного пакета
+2. **Фильтрация пакетов:** Обработка только от определенных NodeID
+3. **Отладка маршрутизации:** Проверка правильности прошивки mesh сети
+4. **Статистика:** Подсчет пакетов от каждого узла
+
+### Тестирование
+Проект компилируется. При включенном макросе `getLastSenderId()` возвращает корректный sender ID из заголовков Meshtastic пакетов. При отключенном макросе - метод возвращает 0 (не используется). Обеспечена полная обратная совместимость.

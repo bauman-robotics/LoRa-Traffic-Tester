@@ -88,7 +88,7 @@ class LoRaCom {
   }
 
   void sendMessage(const char *msg);  // overloaded function
-  bool getMessage(char *buffer, size_t len);
+  bool getMessage(char *buffer, size_t len, int* receivedLen = nullptr);
   int32_t getRssi();
 
   bool setOutGain(int8_t gain);
@@ -130,6 +130,9 @@ class LoRaCom {
   float currentBW = 250.0;
   int currentCR = 5;
   uint8_t currentSyncWord = 0x12;
+
+  // Last sender ID parsed from received packet
+  uint32_t lastSenderId = 0;
 
   static void RxTxCallback(void);
 

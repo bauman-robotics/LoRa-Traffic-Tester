@@ -4,7 +4,10 @@
 // LoRa packet payload length storage
 int lastLoRaPacketLen = 0;
 
-WiFiManager::WiFiManager() {}
+WiFiManager::WiFiManager() {
+  // Initialize WiFi mode and other setup
+  WiFi.mode(WIFI_STA);
+}
 
 void WiFiManager::setLastLoRaPacketLen(int len) {
   lastLoRaPacketLen = len;
@@ -49,16 +52,8 @@ void WiFiManager::loadSettings() {
   ESP_LOGI(TAG, "  MESH_BANDWIDTH=%d", MESH_BANDWIDTH);
   ESP_LOGI(TAG, "  MESH_SPREADING_FACTOR=%d", MESH_SPREADING_FACTOR);
   ESP_LOGI(TAG, "  MESH_CODING_RATE=%d", MESH_CODING_RATE);
+  ESP_LOGI(TAG, "  OLD_LORA_PARS=%d", OLD_LORA_PARS);
   ESP_LOGI(TAG, "  COLD_AS_LORA_PAYLOAD_LEN=%d", COLD_AS_LORA_PAYLOAD_LEN);
-#if WIFI_ENABLE
-  ESP_LOGI(TAG, "WiFi defines:");
-  ESP_LOGI(TAG, "  WIFI_ENABLE=%d", WIFI_ENABLE);
-  ESP_LOGI(TAG, "  WIFI_DEBUG_FIXES=%d", WIFI_DEBUG_FIXES);
-  ESP_LOGI(TAG, "  WIFI_AUTO_TX_POWER_TEST=%d", WIFI_AUTO_TX_POWER_TEST);
-  ESP_LOGI(TAG, "  WIFI_CONNECT_ATTEMPTS=%d", WIFI_CONNECT_ATTEMPTS);
-  ESP_LOGI(TAG, "  WIFI_CONNECT_INTERVAL_MS=%d", WIFI_CONNECT_INTERVAL_MS);
-  ESP_LOGI(TAG, "  WIFI_TX_POWER_VARIANT=%d (enum %d = %0.1f dBm)", WIFI_TX_POWER_VARIANT, WIFI_TX_POWER, (float)(WIFI_TX_POWER - 8) / 2.0f);
-#endif
 }
 
 bool WiFiManager::connect() {
@@ -84,8 +79,7 @@ bool WiFiManager::connect() {
 #endif
 
   ESP_LOGI(TAG, "Connecting to WiFi SSID: %s", ssid.c_str());
-  //ESP_LOGI(TAG, "WiFi password: %s", password.c_str());
-  ESP_LOGI(TAG, "WiFi password: %s", "****");
+  ESP_LOGI(TAG, "WiFi password: ****");
   ESP_LOGI(TAG, "API key: %s", apiKey.c_str());
   ESP_LOGI(TAG, "Server: %s%s", serverIP.c_str(), serverPath.c_str());
   ESP_LOGI(TAG, "Full server URL: %s://%s/%s", serverProtocol.c_str(), serverIP.c_str(), serverPath.c_str());
@@ -94,10 +88,8 @@ bool WiFiManager::connect() {
   char macStr[18];
   sprintf(macStr, "%02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
   ESP_LOGI(TAG, "MAC: %s", macStr);
-  // Configuration logged in loadSettings()
 
 #if WIFI_DEBUG_FIXES
-  WiFi.mode(WIFI_STA);
   WiFi.setSleep(false); // Отключить спящий режим WiFi
   WiFi.setAutoReconnect(true); // Автопереподключение
   WiFi.persistent(true); // Сохранять настройки WiFi
@@ -153,7 +145,7 @@ bool WiFiManager::connect() {
   if (WiFi.status() == WL_CONNECTED) {
     ESP_LOGI(TAG, "WiFi connected: IP %s", WiFi.localIP().toString().c_str());
     WiFi.setTxPower((wifi_power_t)WIFI_TX_POWER);
-    ESP_LOGI(TAG, "WiFi max TX power set to: %d (%0.1f dBm)", WIFI_TX_POWER, (float)(WIFI_TX_POWER - 8) / 2.0f);  // Rough estimate
+    ESP_LOGI(TAG, "WiFi max TX power set to: %d (%0.1f dBm)", WIFI_TX_POWER, (float)(WIFI_TX_POWER - 8) / 2.0f);
     return true;
   } else {
     ESP_LOGE(TAG, "WiFi connection failed after %d attempts, final status=%d", WIFI_CONNECT_ATTEMPTS, (int)WiFi.status());
@@ -161,19 +153,6 @@ bool WiFiManager::connect() {
   }
 #endif
 }
-
-#if WIFI_DEBUG_FIXES
-void WiFiManager::WiFiEvent(WiFiEvent_t event) {
-  switch (event) {
-    case SYSTEM_EVENT_STA_DISCONNECTED:
-      ESP_LOGI(TAG, "WiFi lost connection. Reconnecting...");
-      WiFi.reconnect();
-      break;
-    default:
-      break;
-  }
-}
-#endif
 
 void WiFiManager::disconnect() {
   WiFi.disconnect();
@@ -217,6 +196,26 @@ void WiFiManager::enablePost(bool state) {
   ESP_LOGI(TAG, "POST requests set to %s", state ? "ENABLED" : "DISABLED");
 }
 
+void WiFiManager::setPostOnLora(bool value) {
+  if (post_on_lora_mm != value) {
+    bool wasRunning = (httpTaskHandle != nullptr);
+    if (wasRunning) {
+      stopPOSTTask();
+    }
+    post_on_lora_mm = value;
+    if (wasRunning) {
+      startPOSTTask();
+    }
+    ESP_LOGI(TAG, "POST mode changed to: %s", value ? "LoRa trigger" : "Periodic");
+  }
+}
+
+void WiFiManager::sendSinglePost() {
+  if (enabled && isConnected()) {
+    doHttpPost();
+  }
+}
+
 void WiFiManager::httpPostTaskWrapper(void *param) {
   static_cast<WiFiManager*>(param)->httpPostTask();
 }
@@ -235,26 +234,31 @@ void WiFiManager::stopPOSTTask() {
 }
 
 void WiFiManager::doHttpPost() {
-  extern unsigned long cold_counter;  // From control.cpp
-  extern unsigned long hot_counter;   // From control.cpp
+  extern unsigned long cold_counter;
+  extern unsigned long hot_counter;
 
   WiFiClient client;
   int port = 80;
   String path = "/" + serverPath;
   int alarm_value = ALARM_TIME + random(0, 10000);
   if (POST_SEND_SENDER_ID_AS_ALARM_TIME) {
-    alarm_value = last_sender_id & 0xFFFF;  // Use only lower 16 bits of sender ID, 0 if invalid header
+    //alarm_value = last_sender_id & 0xFFFF;  // Use only lower 16 bits of sender ID, 0 if invalid header
+    alarm_value = last_sender_id & 0xFFFF;
   }
   long hot_value;
   if (post_on_lora_mm) {
     hot_value = POST_HOT_AS_RSSI ? loraRssi : hot_counter;
   } else {
-    hot_value = hot_counter;  // periodic mode always uses hot_counter
+    hot_value = hot_counter;
   }
   long cold_value;
-  if (post_on_lora_mm && COLD_AS_LORA_PAYLOAD_LEN) {
+  if (post_on_lora_mm && (COLD_AS_LORA_PAYLOAD_LEN || !OLD_LORA_PARS)) {
     cold_value = getLastLoRaPacketLen();
-    ESP_LOGI(TAG, "Using LoRa payload length as cold: %ld", cold_value);
+    if (!OLD_LORA_PARS) {
+      ESP_LOGI(TAG, "NEW_LORA_PARS: Using LoRa payload length as cold: %ld", cold_value);
+    } else {
+      ESP_LOGI(TAG, "Using LoRa payload length as cold: %ld", cold_value);
+    }
   } else {
     cold_value = cold_counter++;
     ESP_LOGI(TAG, "Using cold counter: %ld", cold_value);
@@ -338,26 +342,6 @@ void WiFiManager::doHttpPost() {
   }
 }
 
-void WiFiManager::setPostOnLora(bool value) {
-  if (post_on_lora_mm != value) {
-    bool wasRunning = (httpTaskHandle != nullptr);
-    if (wasRunning) {
-      stopPOSTTask();
-    }
-    post_on_lora_mm = value;
-    if (wasRunning) {
-      startPOSTTask();
-    }
-    ESP_LOGI(TAG, "POST mode changed to: %s", value ? "LoRa trigger" : "Periodic");
-  }
-}
-
-void WiFiManager::sendSinglePost() {
-  if (enabled && isConnected()) {
-    doHttpPost();
-  }
-}
-
 void WiFiManager::pingTaskWrapper(void *param) {
   static_cast<WiFiManager*>(param)->pingTask();
 }
@@ -425,3 +409,16 @@ void WiFiManager::httpPostTask() {
     }
   }
 }
+
+#if WIFI_DEBUG_FIXES
+void WiFiManager::WiFiEvent(WiFiEvent_t event) {
+  switch (event) {
+    case SYSTEM_EVENT_STA_DISCONNECTED:
+      ESP_LOGI(TAG, "WiFi lost connection. Reconnecting...");
+      WiFi.reconnect();
+      break;
+    default:
+      break;
+  }
+}
+#endif

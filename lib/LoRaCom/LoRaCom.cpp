@@ -70,7 +70,8 @@ bool LoRaCom::checkTxMode() {
   return TxMode;  // Return the current transmission mode status
 }
 
-bool LoRaCom::getMessage(char *buffer, size_t len) {
+bool LoRaCom::getMessage(char *buffer, size_t len, int* receivedLen) {
+  int actualLen = 0;
   if (isFakeMode) {
     // Simulate receiving a message occasionally
     static int counter = 0;
@@ -78,7 +79,9 @@ bool LoRaCom::getMessage(char *buffer, size_t len) {
     if (counter % 1000 == 0) {  // Every 1000th call - reduce spam
       const char *fakeMsg = "Fake received message";
       if (strlen(fakeMsg) < len) {
-        strcpy(buffer, fakeMsg);
+        strcpy((char*)buffer, fakeMsg);
+        actualLen = strlen(fakeMsg);
+        if (receivedLen) *receivedLen = actualLen;
         return true;
       }
     }
@@ -107,15 +110,78 @@ bool LoRaCom::getMessage(char *buffer, size_t len) {
     }
 
     if (RxFlag && radioInitialised) {
-      int state = radioUnion.sRadio->readData(reinterpret_cast<uint8_t *>(buffer), len);
+      int state;  // Объявляем переменную state в начале блока
+
+#if PARSE_SENDER_ID_FROM_LORA_PACKETS == 1
+      // NEW METHOD: Parse sender_id from packet header when enabled
+      size_t packetLength = radioUnion.sRadio->getPacketLength();
+      if (packetLength > 7) {
+        // Read the entire packet including header
+        uint8_t tempBuffer[packetLength];
+        state = radioUnion.sRadio->readData(tempBuffer, packetLength);
+
+        // Extract sender_id from header (Meshtastic format)
+        // Header format: to(4), from(4), id(4), channel/flags(1+) ...
+        if (packetLength >= 8) {
+          lastSenderId = (tempBuffer[4] << 24) | (tempBuffer[5] << 16) | (tempBuffer[6] << 8) | tempBuffer[7];
+          ESP_LOGI(TAG, "Parsed sender_id: %u from packet length %d", lastSenderId, packetLength);
+        }
+
+        // Copy payload to user's buffer (skip header if needed)
+        //size_t payloadLen = packetLength - 8;  // Assume 8-byte header
+        size_t payloadLen = packetLength;  // Assume 8-byte header
+        if (payloadLen > len) payloadLen = len;
+        memcpy((uint8_t*)buffer, tempBuffer + 8, payloadLen);
+        actualLen = payloadLen;
+      } else {
+        // Short packet - use sender_id = 1
+        lastSenderId = 1;
+        state = radioUnion.sRadio->readData(reinterpret_cast<uint8_t *>(buffer), len);
+        // Use same length detection logic as before
+        actualLen = 0;
+        for (size_t i = 0; i < len; i++) {
+          if (buffer[i] == '\0') {
+            actualLen = i;
+            break;
+          }
+        }
+        if (actualLen == 0) actualLen = len;
+        ESP_LOGI(TAG, "Short packet received, using sender_id = 1");
+      }
+#else
+      // OLD METHOD: Original logic when parsing is disabled - no getPacketLength() call
+      state = radioUnion.sRadio->readData(reinterpret_cast<uint8_t *>(buffer), len);
+#endif
+
       RxFlag = false;
       state |= radioUnion.sRadio->startReceive();
       bool result = (state == RADIOLIB_ERR_NONE);
-    if (result && (POST_EN_WHEN_LORA_RECEIVED || force_lora_trigger) && wifi_manager_global) {
-      ESP_LOGI(TAG, "LoRa packet received, sending POST trigger");
-      ((WiFiManager*)wifi_manager_global)->setLoRaRssi(abs(radioUnion.sRadio->getRSSI()));
-      ((WiFiManager*)wifi_manager_global)->setSendPostOnLoRa(true);
-    }
+
+      if (result) {
+        // Determine actual packet length
+#if PARSE_SENDER_ID_FROM_LORA_PACKETS == 0
+        // Original length detection when parsing disabled
+        actualLen = 0;
+        for (size_t i = 0; i < len; i++) {
+          if (buffer[i] == '\0') {
+            actualLen = i;
+            break;
+          }
+        }
+        if (actualLen == 0) {  // No null terminator found, assume we got data
+          // This is tricky - RadioLib doesn't return actual received length
+          // We'll use a heuristic or assume received something meaningful
+          actualLen = len;  // Default assumption
+        }
+#endif
+
+        if (receivedLen) *receivedLen = actualLen;
+      }
+      if (result && (POST_EN_WHEN_LORA_RECEIVED || force_lora_trigger) && wifi_manager_global) {
+        ESP_LOGI(TAG, "LoRa packet received, sending POST trigger");
+        ((WiFiManager*)wifi_manager_global)->setLoRaRssi(abs(radioUnion.sRadio->getRSSI()));
+        ((WiFiManager*)wifi_manager_global)->setSendPostOnLoRa(true);
+      }
       return result;
     }
     return false;

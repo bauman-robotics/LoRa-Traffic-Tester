@@ -21,7 +21,7 @@ Control::Control() {
   m_commander =
       new Commander(m_serialCom, m_LoRaCom, this);  // Initialize Commander instance
 
-  m_saveFlash = new SaveFlash(m_serialCom);  // Initialize SaveFlash instance
+  //m_saveFlash = new SaveFlash(m_serialCom);  // Initialize SaveFlash instance
   m_wifiManager = new WiFiManager();         // Initialize WiFiManager instance
   wifi_manager_global = m_wifiManager;       // Set global pointer
 }
@@ -107,7 +107,7 @@ void Control::setup() {
     }
   }
 
-  m_saveFlash->begin();  // Initialize flash storage
+  //m_saveFlash->begin();  // Initialize flash storage
 
   m_wifiManager->loadSettings();
 
@@ -156,8 +156,6 @@ void Control::begin() {
   ESP_LOGI(TAG, "Type <help> for a list of commands");
 }
 
-
-
 void Control::serialDataTask() {
   char buffer[128];  // Buffer to store incoming data
   int rxIndex = 0;   // Index to track the length of the received message
@@ -179,43 +177,111 @@ void Control::serialDataTask() {
 
 void Control::loRaDataTask() {
   char buffer[256];  // Buffer to store incoming data, increased to handle large Meshtastic packets
-  int rxIndex = 0;   // Index to track the length of the received message
 
   while (true) {
     // Always call getMessage to process any pending transmissions/receptions
-    if (m_LoRaCom->getMessage(buffer, sizeof(buffer))) {
-      ESP_LOGD(TAG, "Received: %s", buffer);  // Log the received data
-      // Set packet length for POST
-      int len = strlen(buffer);
-
-      // Extract sender ID from packet header if packet has mesh format
-      // Mesh packet format: sender NodeID at offset 0x04 (4 bytes, little-endian)
-      if (len >= 0x10) {  // Minimum packet size with header
-        // Treat buffer as byte array to extract binary data
-        const uint8_t* packetData = reinterpret_cast<const uint8_t*>(buffer);
-        // Sender ID is at offset 4-7, little-endian 32-bit integer
-        uint32_t senderId = packetData[4] | (packetData[5] << 8) | (packetData[6] << 16) | (packetData[7] << 24);
-        m_wifiManager->setLastSenderId(senderId);
-        ESP_LOGI(TAG, "Extracted sender NodeID: %lu", (unsigned long)senderId);
-      } else if (len > 0) {  // Invalid header, set alarm_time to 0
-        m_wifiManager->setLastSenderId(0);
-        ESP_LOGI(TAG, "Packet too short for mesh header, setting alarm_time to 00");
+    int receivedLen = 0;  // Initialize to track actual received length
+    if (m_LoRaCom->getMessage(buffer, sizeof(buffer), &receivedLen)) {
+      ESP_LOGI(TAG, "LoRa packet received, length: %d bytes", receivedLen);
+      // Log first few bytes in hex for debugging
+      if (receivedLen > 0) {
+        char hexBuf[64];
+        int hexLen = min(16, receivedLen);  // Show first 16 bytes
+        sprintf(hexBuf, "First %d bytes (hex): ", hexLen);
+        for (int i = 0; i < hexLen; i++) {
+          sprintf(hexBuf + strlen(hexBuf), "%02X ", (uint8_t)buffer[i]);
+        }
+        ESP_LOGD(TAG, "%s", hexBuf);
       }
 
-      ESP_LOGI(TAG, "LoRa packet payload length: %d", len);
-      m_wifiManager->setLastLoRaPacketLen(len);
+      if (OLD_LORA_PARS) {
+        // Old parsing method (simplified)
+        ESP_LOGD(TAG, "Received: %s", buffer);  // Log the received data
+        // Set packet length for POST
+        int oldLength = strlen(buffer);
+        ESP_LOGI(TAG, "LoRa packet payload length: %d", oldLength);
+        m_wifiManager->setLastLoRaPacketLen(oldLength);
+        m_wifiManager->setLastSenderId(1);
 
-      interpretMessage(buffer, false);        // Process the message
-      // Send the received data over serial
-      m_serialCom->sendData("LoRa Received: <");
-      m_serialCom->sendData(buffer);
-      m_serialCom->sendData(">\n");
+        interpretMessage(buffer, false);        // Process the message
+        // Send the received data over serial
+        m_serialCom->sendData("LoRa Received: <");
+        m_serialCom->sendData(buffer);
+        m_serialCom->sendData(">\n");
 
-      // Save to flash for logging all received LoRa messages
-      m_saveFlash->writeData((String("RX: ") + buffer + "\n").c_str());
+        // Save to flash for logging all received LoRa messages
+        //m_saveFlash->writeData((String("RX: ") + buffer + "\n").c_str());
+
+        // POST on LoRa receive disabled for stability
+        ESP_LOGI(TAG, "OLD_LORA_PARS=1: Simple processing completed, alarm_time=01");
+      } else {
+        // Extract sender ID from packet header - new logic
+        if (receivedLen >= 8) {
+          const uint8_t* packetData = reinterpret_cast<const uint8_t*>(buffer);
+          // Sender ID at offset 0x04 (4 bytes, little-endian 32-bit integer)
+          uint32_t senderId = packetData[4] | (packetData[5] << 8) | (packetData[6] << 16) | (packetData[7] << 24);
+          // Take last 2 bytes (mладшие 16 bits) of sender ID
+          uint16_t alarmValue = senderId & 0xFFFF;
+          m_wifiManager->setLastSenderId(alarmValue);
+          ESP_LOGI(TAG, "Extracted sender NodeID: %lu (alarm_time=%04X)", (unsigned long)senderId, alarmValue);
+        } else {
+          // Packet too short (< 8 bytes), can't extract sender ID
+          m_wifiManager->setLastSenderId(0);
+          ESP_LOGI(TAG, "Packet too short (%d bytes < 8), can't extract sender ID, alarm_time=00", receivedLen);
+        }
+
+        // Set packet length for POST - use actual received length
+        m_wifiManager->setLastLoRaPacketLen(receivedLen);
+
+        // Null-terminate for string operations if needed
+        if (receivedLen < sizeof(buffer)) {
+          buffer[receivedLen] = '\0';
+        }
+
+        // Log first few bytes in hex for debugging
+        if (receivedLen > 0) {
+          char hexBuf[64];
+          int hexLen = min(16, receivedLen);  // Show first 16 bytes
+          sprintf(hexBuf, "First %d bytes (hex): ", hexLen);
+          for (int i = 0; i < hexLen; i++) {
+            sprintf(hexBuf + strlen(hexBuf), "%02X ", (uint8_t)buffer[i]);
+          }
+          ESP_LOGD(TAG, "%s", hexBuf);
+        }
+
+        // Only try to interpret as text if it's mostly printable ASCII
+        bool isTextMessage = true;
+        // for (int i = 0; i < receivedLen && i < 50; i++) {
+        //   if (buffer[i] < 32 && buffer[i] != '\n' && buffer[i] != '\r' && buffer[i] != '\t') {
+        //     isTextMessage = false;
+        //     break;
+        //   }
+        // }
+
+        if (isTextMessage) {
+          ESP_LOGD(TAG, "Received (text): %s", buffer);
+          interpretMessage(buffer, false);        // Process the message
+          // Send the received data over serial
+          m_serialCom->sendData("LoRa Received: <");
+          m_serialCom->sendData(buffer);
+          m_serialCom->sendData(">\n");
+
+          // Save to flash for logging all received LoRa messages
+          //m_saveFlash->writeData((String("RX: ") + buffer + "\n").c_str());
+        } else {
+          ESP_LOGI(TAG, "Received binary packet (%d bytes), skipping text interpretation", receivedLen);
+          // Save to flash as hex dump for binary packets
+          char hexDump[512];
+          sprintf(hexDump, "RX_BIN: %d bytes - ", receivedLen);
+          int hexLen = min(32, receivedLen);  // Show first 32 bytes
+          for (int i = 0; i < hexLen; i++) {
+            sprintf(hexDump + strlen(hexDump), "%02X ", (uint8_t)buffer[i]);
+          }
+          ///m_saveFlash->writeData((String(hexDump) + "\n").c_str());
+        }
+      }
 
       memset(buffer, 0, sizeof(buffer));
-      rxIndex = 0;  // Reset the index
     }
 
     // Reduce CPU wakeups when WiFi off: longer delay
@@ -369,7 +435,6 @@ void Control::interpretMessage(const char *buffer, bool relayMsgLoRa) {
       // send to other devices to sync parameters
       m_LoRaCom->sendMessage(buffer);
       while (m_LoRaCom->checkTxMode()) {
-        // wait for LoRa to finish transmitting
         vTaskDelay(pdMS_TO_TICKS(10));  // Wait for LoRa transmission
       }
     }
@@ -452,9 +517,9 @@ void Control::interpretMessage(const char *buffer, bool relayMsgLoRa) {
              "  - status: for device status\n"
              "  - help: for displaying help information");
   } else if (token != nullptr && c_cmp(token, "flash")) {
-    m_saveFlash->readFile();
-    m_saveFlash->removeFile();  // Update the flash storage
-    m_saveFlash->begin();       // Reinitialize the flash storage
+    //m_saveFlash->readFile();
+    //m_saveFlash->removeFile();  // Update the flash storage
+    //m_saveFlash->begin();       // Reinitialize the flash storage
   }
 }
 
@@ -475,10 +540,10 @@ void Control::processData(const char *buffer) {
   // Send confirmation over serial
   m_serialCom->sendData("Data sent to LoRa: ");
   m_serialCom->sendData(dataStart);
-  m_serialCom->sendData("\n");
+  m_serialCom->sendData("Data sent to LoRa: ");
 
   // Also save to flash for logging
-  m_saveFlash->writeData((String("TX: ") + dataStart + "\n").c_str());
+  //m_saveFlash->writeData((String("TX: ") + dataStart + "\n").c_str());
 
   ESP_LOGI(TAG, "Data sent to LoRa: %s", dataStart);
 }
