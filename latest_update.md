@@ -546,7 +546,71 @@ Cleaner логи без лишних префиксов и wrap-around. GUI си
 - Изменить MESHTASTIC_PREAMBLE_LENGTH с 8 на 20 в lib/LoRaCom/LoRaCom.cpp
 - Это критически важно для корректной работы duty cycle с Long Fast preset
 
-- Исправлено MESHTASTIC_PREAMBLE_LENGTH = 20 на приемнике. 
-  Если на передатчике старое значение, пакеты всё равно проходят. 
-  Шум пакетов также виден как и с 8 
+- Исправлено MESHTASTIC_PREAMBLE_LENGTH = 20 на приемнике.
+  Если на передатчике старое значение, пакеты всё равно проходят.
+  Шум пакетов также виден как и с 8
   Стали видны пакеты с уровнем сигнала -95 дБм, до этого шумные пакеты были -110 дБм
+
+## 31. Введение DEVICE_TYPE_TRANSMITTER для конфигурации типов устройств
+
+### Описание изменений
+- Добавлен новый макрос `DEVICE_TYPE_TRANSMITTER` в конец `lib/lora_config.hpp` (вместо старого `DEVICE_TYPE`)
+- Улучшенная читаемость: явно указывает транслитерацию английского названия устройства
+- Управляет автоматической настройкой устройства в зависимости от роли:
+  - Приемник (коллектор данных с передачей по WiFi)
+  - Передатчик (устройство только для отправки LoRa статусов)
+
+### Технические детали
+```cpp
+#define DEVICE_TYPE_TRANSMITTER 0  // 0=приемник (RECEIVER), 1=передатчик (TRANSMITTER)
+
+#if DEVICE_TYPE_TRANSMITTER == 0  // RECEIVER - устройство для приема и передачи данных по WiFi
+    #define WIFI_ENABLE 1                   // Включаем WiFi для передачи данных
+    #define POST_EN_WHEN_LORA_RECEIVED 1    // POST при каждом принятом LoRa пакете
+    #define LORA_STATUS_ENABLED 0           // Отключаем свои статусы LoRa
+    #define WIFI_DEBUG_FIXES 1              // Включаем WiFi исправления
+    #define WIFI_AUTO_TX_POWER_TEST 0       // Авто тест отключен дефолтно
+    // Остальные настройки остаются дефолтными
+
+#elif DEVICE_TYPE_TRANSMITTER == 1  // TRANSMITTER - устройство только для отправки LoRa статусов
+    #define WIFI_ENABLE 0                   // Экономия энергии - без WiFi
+    #define POST_EN_WHEN_LORA_RECEIVED 0    // Без POST режимов
+    #define LORA_STATUS_ENABLED 1           // Отправляет периодические LoRa статусы
+    #define POST_INTERVAL_EN 0              // Отключаем periodic POST
+    #define WIFI_DEBUG_FIXES 0              // WiFi fixes не нужны
+    #define WIFI_AUTO_TX_POWER_TEST 0       // Auto TX power тест отключен
+
+#else
+    #error "Invalid DEVICE_TYPE_TRANSMITTER. Must be 0 (RECEIVER) or 1 (TRANSMITTER)"
+#endif
+```
+
+### Преимущества новой реализации
+- **Лучшая читаемость**: Название отражает предназначение устройства
+- **Экономия энергии**: TRANSMITTER не тратит энергию на WiFi
+- **Безопасность**: Ошибка компиляции при неверном значении
+- **Гибкость**: Полный контроль над конфигурацией каждого типа
+
+### Тестирование
+Компилируется для обоих типов устройств. Приемник - активный WiFi режим, передатчик - экономичный LoRa-only режим.
+
+## 32. Извлечение ID отправителя из LoRa пакетов и использование в alarm_time
+
+### Описание изменений
+- Добавлен макрос `POST_SEND_SENDER_ID_AS_ALARM_TIME 0` в `lib/lora_config.hpp` для включения передачи ID отправителя в поле alarm_time POST запросов.
+- В `WiFiManager::doHttpPost()` добавлено логирование `alarm_value` при подготовке POST: `ESP_LOGI(TAG, "Alarm time: %d", alarm_value);`.
+- В `Control::loRaDataTask()` реализована логика извлечения sender NodeID из заголовков пакетов Meshtastic формата:
+  - При пакетах >=16 байт: извлекается sender ID (байты 4-7, little-endian 32-bit) и устанавливается как `last_sender_id`.
+  - При пакетах <16 байт (неправильный заголовок): `last_sender_id = 0`, что дает `alarm_time = 00`.
+- Логирование извлечения: `"Extracted sender NodeID: <ID>"` или `"Packet too short for mesh header, setting alarm_time to 00"`.
+
+### Технические детали
+- **Формат пакетов Meshtastic:** 16-байтный заголовок с sender NodeID в байтах 4-7 (little-endian).
+- **Логика:** Когда `POST_SEND_SENDER_ID_AS_ALARM_TIME = 1`, `alarm_time = last_sender_id & 0xFFFF` (последние 16 бит ID LoRa отправителя или 00 при ошибке).
+- **Обработка ошибок:** Неправильные заголовки → `alarm_time = 00` вместо случайного значения.
+
+### Обоснование
+Позволяет отслеживать отправителя LoRa пакетов через поле `alarm_time` в POST данных. Неправильные пакеты получают `alarm_time = 00` для идентификации проблем.
+
+### Тестирование
+Проект компилируется. При получении корректных Meshtastic пакетов `alarm_time` содержит последние 16 бит NodeID отправителя. Неправильные пакеты логгируются с `alarm_time = 00`. В дефолтной конфигурации сохраняется обратная совместимость (`POST_SEND_SENDER_ID_AS_ALARM_TIME = 0`).

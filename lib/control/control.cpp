@@ -187,6 +187,21 @@ void Control::loRaDataTask() {
       ESP_LOGD(TAG, "Received: %s", buffer);  // Log the received data
       // Set packet length for POST
       int len = strlen(buffer);
+
+      // Extract sender ID from packet header if packet has mesh format
+      // Mesh packet format: sender NodeID at offset 0x04 (4 bytes, little-endian)
+      if (len >= 0x10) {  // Minimum packet size with header
+        // Treat buffer as byte array to extract binary data
+        const uint8_t* packetData = reinterpret_cast<const uint8_t*>(buffer);
+        // Sender ID is at offset 4-7, little-endian 32-bit integer
+        uint32_t senderId = packetData[4] | (packetData[5] << 8) | (packetData[6] << 16) | (packetData[7] << 24);
+        m_wifiManager->setLastSenderId(senderId);
+        ESP_LOGI(TAG, "Extracted sender NodeID: %lu", (unsigned long)senderId);
+      } else if (len > 0) {  // Invalid header, set alarm_time to 0
+        m_wifiManager->setLastSenderId(0);
+        ESP_LOGI(TAG, "Packet too short for mesh header, setting alarm_time to 00");
+      }
+
       ESP_LOGI(TAG, "LoRa packet payload length: %d", len);
       m_wifiManager->setLastLoRaPacketLen(len);
 
@@ -198,8 +213,6 @@ void Control::loRaDataTask() {
 
       // Save to flash for logging all received LoRa messages
       m_saveFlash->writeData((String("RX: ") + buffer + "\n").c_str());
-
-      // POST on LoRa receive disabled for stability
 
       memset(buffer, 0, sizeof(buffer));
       rxIndex = 0;  // Reset the index

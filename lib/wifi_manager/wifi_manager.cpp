@@ -241,7 +241,10 @@ void WiFiManager::doHttpPost() {
   WiFiClient client;
   int port = 80;
   String path = "/" + serverPath;
-  int random_alarm = ALARM_TIME + random(0, 10000);
+  int alarm_value = ALARM_TIME + random(0, 10000);
+  if (POST_SEND_SENDER_ID_AS_ALARM_TIME) {
+    alarm_value = last_sender_id & 0xFFFF;  // Use only lower 16 bits of sender ID, 0 if invalid header
+  }
   long hot_value;
   if (post_on_lora_mm) {
     hot_value = POST_HOT_AS_RSSI ? loraRssi : hot_counter;
@@ -256,12 +259,13 @@ void WiFiManager::doHttpPost() {
     cold_value = cold_counter++;
     ESP_LOGI(TAG, "Using cold counter: %ld", cold_value);
   }
+  ESP_LOGI(TAG, "Alarm time: %d", alarm_value);
   String postData = "api_key=" + apiKey +
                     "&user_id=" + userId +
                     "&user_location=" + userLocation +
                     "&cold=" + String(cold_value) +
                     "&hot=" + String(hot_value) +
-                    "&alarm_time=" + String(random_alarm);
+                    "&alarm_time=" + String(alarm_value);
 
   ESP_LOGI(TAG, "Preparing POST: cold=%ld, hot=%ld, path=%s, server=%s",
            cold_value, hot_value, path.c_str(), serverIP.c_str());

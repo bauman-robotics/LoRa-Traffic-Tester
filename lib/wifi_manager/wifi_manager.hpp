@@ -22,6 +22,7 @@ class WiFiManager {
   void setSendPostOnLoRa(bool value) { sendPostOnLoRa = value; }
   void setPostOnLora(bool value);
   void setLoRaRssi(int32_t rssi) { loraRssi = rssi; }
+  void setLastSenderId(int id) { last_sender_id = id; }
   String getSSID() const { return ssid; }
   String getAPIKey() const { return apiKey; }
   String getServerURL() const { return serverProtocol + "://" + serverIP + "/" + serverPath; }
@@ -49,6 +50,7 @@ class WiFiManager {
   volatile bool sendPostOnLoRa = false;
   volatile bool post_on_lora_mm = POST_EN_WHEN_LORA_RECEIVED;
   int32_t loraRssi = 0;
+  int32_t last_sender_id = ALARM_TIME;
   TaskHandle_t httpTaskHandle = nullptr;
   TaskHandle_t pingTaskHandle = nullptr;
   String lastHttpResult = "No posts yet";
