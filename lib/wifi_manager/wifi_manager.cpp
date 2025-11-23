@@ -20,12 +20,26 @@ int WiFiManager::getLastLoRaPacketLen() {
 void WiFiManager::loadSettings() {
   ssid = DEFAULT_WIFI_SSID;
   password = DEFAULT_WIFI_PASSWORD;
+
+#if USE_FLASK_SERVER
+  // Use Flask server settings
+  apiKey = DEFAULT_FLASK_API_KEY;
+  userId = DEFAULT_FLASK_USER_ID;
+  userLocation = DEFAULT_FLASK_USER_LOCATION;
+  serverProtocol = DEFAULT_FLASK_SERVER_PROTOCOL;
+  serverIP = DEFAULT_FLASK_SERVER_IP;
+  serverPort = DEFAULT_FLASK_SERVER_PORT;
+  serverPath = DEFAULT_FLASK_SERVER_PATH;
+#else
+  // Use PHP server settings (default)
   apiKey = DEFAULT_API_KEY;
   userId = DEFAULT_USER_ID;
   userLocation = DEFAULT_USER_LOCATION;
   serverProtocol = DEFAULT_SERVER_PROTOCOL;
   serverIP = DEFAULT_SERVER_IP;
+  serverPort = "80";  // Default HTTP port for PHP server
   serverPath = DEFAULT_SERVER_PATH;
+#endif
   ESP_LOGI(TAG, "Settings loaded from defaults");
   std::string settings = "Network defaults:\n";
   settings += "SSID: " + std::string(DEFAULT_WIFI_SSID) + "\n";
@@ -125,7 +139,7 @@ bool WiFiManager::connect() {
       return true;
     } else {
       ESP_LOGW(TAG, "TX power variant %d (%d) failed after %d attempts, trying next", (int)v, txPowers[v], WIFI_ATTEMPTS_PER_VARIANT);
-      WiFi.disconnect();  // Disconnect before trying next
+      WiFi.disconnect();  // Disconnect before next variant
       vTaskDelay(pdMS_TO_TICKS(1000));  // Brief delay before next variant
     }
   }
@@ -238,7 +252,7 @@ void WiFiManager::doHttpPost() {
   extern unsigned long hot_counter;
 
   WiFiClient client;
-  int port = 80;
+  int port = serverPort.toInt();  // Use configurable port
   String path = "/" + serverPath;
   int alarm_value = ALARM_TIME + random(0, 10000);
   if (POST_SEND_SENDER_ID_AS_ALARM_TIME) {
@@ -264,12 +278,31 @@ void WiFiManager::doHttpPost() {
     ESP_LOGI(TAG, "Using cold counter: %ld", cold_value);
   }
   ESP_LOGI(TAG, "Alarm time: %d", alarm_value);
+
+#if USE_FLASK_SERVER
+  // Flask server - Enhanced JSON format with detailed LoRa packet info (HEX string format)
+  String postData = "{";
+  postData += "\"user_id\":\"" + userId + "\",";
+  postData += "\"user_location\":\"" + userLocation + "\",";
+  postData += "\"sender_nodeid\":\"" + uint32ToHexString(last_sender_id) + "\",";  // Sender NodeID as HEX string
+  postData += "\"destination_nodeid\":\"" + uint32ToHexString(last_destination_id) + "\",";  // Destination NodeID as HEX string
+  postData += "\"full_packet_len\":" + String(getLastFullPacketLen()) + ",";  // Full packet length including headers
+  postData += "\"signal_level_dbm\":" + String(loraRssi);  // Signal strength in dBm
+  postData += "}";
+  String contentType = "application/json";
+  ESP_LOGI(TAG, "Using Flask server with enhanced JSON POST data: sender_nodeid=%s, destination_nodeid=%s",
+           uint32ToHexString(last_sender_id).c_str(), uint32ToHexString(last_destination_id).c_str());
+#else
+  // PHP server - form-encoded format
   String postData = "api_key=" + apiKey +
                     "&user_id=" + userId +
                     "&user_location=" + userLocation +
                     "&cold=" + String(cold_value) +
                     "&hot=" + String(hot_value) +
                     "&alarm_time=" + String(alarm_value);
+  String contentType = "application/x-www-form-urlencoded";
+  ESP_LOGI(TAG, "Using PHP server with form-encoded POST data");
+#endif
 
   ESP_LOGI(TAG, "Preparing POST: cold=%ld, hot=%ld, path=%s, server=%s",
            cold_value, hot_value, path.c_str(), serverIP.c_str());
@@ -294,7 +327,7 @@ void WiFiManager::doHttpPost() {
     client.println("POST " + path + " HTTP/1.1");
     client.println("Host: " + serverIP);
     client.println("User-Agent: curl/7.81.0");
-    client.println("Content-Type: application/x-www-form-urlencoded");
+    client.println("Content-Type: " + contentType);
     client.println("Content-Length: " + String(postData.length()));
     client.println("Connection: close");
     client.println();
@@ -361,13 +394,13 @@ void WiFiManager::stopPingTask() {
 
 void WiFiManager::pingServer() {
   WiFiClient client;
-  int port = 80;
-  ESP_LOGI(TAG, "Pinging server %s", serverIP.c_str());
+  int port = serverPort.toInt();
+  ESP_LOGI(TAG, "Pinging server %s on port %d", serverIP.c_str(), port);
   if (client.connect(serverIP.c_str(), port)) {
-    ESP_LOGI(TAG, "Ping success: connected to %s", serverIP.c_str());
+    ESP_LOGI(TAG, "Ping success: connected to %s:%d", serverIP.c_str(), port);
     client.stop();
   } else {
-    ESP_LOGE(TAG, "Ping failed: cannot connect to %s", serverIP.c_str());
+    ESP_LOGE(TAG, "Ping failed: cannot connect to %s:%d", serverIP.c_str(), port);
   }
 }
 
@@ -408,6 +441,12 @@ void WiFiManager::httpPostTask() {
       vTaskDelay(pdMS_TO_TICKS(POST_INTERVAL_MS));
     }
   }
+}
+
+String WiFiManager::uint32ToHexString(uint32_t value) {
+  char hexStr[9];  // 8 chars + null terminator
+  sprintf(hexStr, "%08X", value);
+  return String(hexStr);
 }
 
 #if WIFI_DEBUG_FIXES

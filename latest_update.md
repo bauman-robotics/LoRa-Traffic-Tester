@@ -831,3 +831,61 @@ if (senderId == 1) {
 
 ### Тестирование
 Проект компилируется. При включенном макросе `getLastSenderId()` возвращает корректный sender ID из заголовков Meshtastic пакетов. При отключенном макросе - метод возвращает 0 (не используется). Обеспечена полная обратная совместимость.
+
+## 36. Поддержка альтернативного Flask сервера для HTTP POST запросов
+
+### Описание изменений
+- Добавлен макрос `USE_FLASK_SERVER 0` в `lib/lora_config.hpp` для выбора между PHP и Flask серверами
+- Добавлены параметры Flask сервера в `lib/fake_network_definitions.h`:
+  - `DEFAULT_FLASK_SERVER_IP = "xx.xx.xx.xx"` (IP адрес Flask сервера)
+  - `DEFAULT_FLASK_SERVER_PORT = "xx"` (порт Flask сервера)
+  - `DEFAULT_FLASK_SERVER_PATH = "/api/lora"` (путь API)
+  - Остальные параметры: user_id="new_device_001", user_location="location_after_clear"
+
+### Различия между PHP и Flask серверами
+
+#### PHP сервер (USE_FLASK_SERVER = 0):
+- **Формат данных:** application/x-www-form-urlencoded
+- **Пример POST данных:** `api_key=abc123&user_id=test&cold=100&hot=50&alarm_time=12345`
+- **Порт:** 80 (стандартный HTTP)
+- **Параметры:** api_key, user_id, user_location, cold, hot, alarm_time
+
+#### Flask сервер (USE_FLASK_SERVER = 1):
+- **Формат данных:** application/json
+- **Пример POST данных:** `{"user_id":"new_device_001","user_location":"location_after_clear","sender_nodeid":"A1B2C3D4","destination_nodeid":"FFFFFFFF","full_packet_len":45,"signal_level_dbm":-85}`
+- **Порт:** 5001 (конфигурируемый)
+- **URL:** http://84.252.143.212:5001/api/lora
+- **CURL пример:** `curl -X POST http://84.252.143.212:5001/api/lora -H "Content-Type: application/json" -d '{"user_id":"new_device_001","user_location":"location_after_clear","sender_nodeid":"A1B2C3D4","destination_nodeid":"FFFFFFFF","full_packet_len":45,"signal_level_dbm":-85}'`
+
+### Детальные поля для Flask сервера
+
+| Поле JSON | Тип | Описание | Пример значения |
+|-----------|-----|----------|----------------|
+| `user_id` | string | ID устройства (строка) | `"new_device_001"` |
+| `user_location` | string | Локация устройства (строка) | `"location_after_clear"` |
+| `sender_nodeid` | string | Sender NodeID как HEX строка (8 символов) | `"A1B2C3D4"` |
+| `destination_nodeid` | string | Destination NodeID как HEX строка (8 символов) | `"FFFFFFFF"` (broadcast) |
+| `signal_level_dbm` | Уровень сигнала RSSI в dBm | `-85` |
+
+### Технические детали реализации
+- В `WiFiManager::loadSettings()` условная загрузка параметров в зависимости от макроса
+- В `WiFiManager::doHttpPost()` условная генерация POST данных:
+  - Для Flask: JSON объект с полями
+  - Для PHP: form-encoded строка
+- Автоматический выбор Content-Type заголовка
+- Обновленное логирование с корректными CURL примерами для каждого типа сервера
+- Ping функциональность использует configurable порт
+
+### Сценарии использования
+
+1. **Тестирование на PHP сервере** (USE_FLASK_SERVER = 0):
+   - Разработка и отладка
+   - Backward compatibility с существующими серверами
+
+2. **Продакшн на Flask сервере** (USE_FLASK_SERVER = 1):
+   - Новые развертывания с JSON API
+   - Современная архитектура сервера
+   - Поддержка структурированных данных
+
+### Тестирование
+Проект компилируется. При `USE_FLASK_SERVER = 1` устройство отправляет JSON данные на Flask сервер. При `USE_FLASK_SERVER = 0` - использует традиционный PHP формат. Логи отображают корректные CURL примеры для каждого режима.

@@ -23,6 +23,9 @@ class WiFiManager {
   void setPostOnLora(bool value);
   void setLoRaRssi(int32_t rssi) { loraRssi = rssi; }
   void setLastSenderId(int id) { last_sender_id = id; }
+  void setLastDestinationId(int id) { last_destination_id = id; }
+  void setLastFullPacketLen(int len) { lastFullPacketLen = len; }
+  int32_t getLastFullPacketLen() { return lastFullPacketLen; }
   String getSSID() const { return ssid; }
   String getAPIKey() const { return apiKey; }
   String getServerURL() const { return serverProtocol + "://" + serverIP + "/" + serverPath; }
@@ -42,15 +45,19 @@ class WiFiManager {
   void stopPingTask();
   void pingServer();
 
+  String uint32ToHexString(uint32_t value);  // Convert uint32_t to 8-character hex string
+
   String ssid, password;
   String apiKey, userId, userLocation;
-  String serverProtocol, serverIP, serverPath;
+  String serverProtocol, serverIP, serverPort, serverPath;
   bool enabled = false;
   bool postEnabled = POST_INTERVAL_EN;
   volatile bool sendPostOnLoRa = false;
   volatile bool post_on_lora_mm = POST_EN_WHEN_LORA_RECEIVED;
   int32_t loraRssi = 0;
   int32_t last_sender_id = ALARM_TIME;
+  int32_t last_destination_id = 0xFFFFFFFF;  // Destination NodeID for Flask server (defaults to broadcast)
+  int32_t lastFullPacketLen = 0;  // Full packet length including headers for Flask server
   TaskHandle_t httpTaskHandle = nullptr;
   TaskHandle_t pingTaskHandle = nullptr;
   String lastHttpResult = "No posts yet";

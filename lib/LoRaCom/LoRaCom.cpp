@@ -120,11 +120,13 @@ bool LoRaCom::getMessage(char *buffer, size_t len, int* receivedLen) {
         uint8_t tempBuffer[packetLength];
         state = radioUnion.sRadio->readData(tempBuffer, packetLength);
 
-        // Extract sender_id from header (Meshtastic format)
+        // Extract destination_id and sender_id from header (Meshtastic format)
         // Header format: to(4), from(4), id(4), channel/flags(1+) ...
         if (packetLength >= 8) {
+          uint32_t destinationId = (tempBuffer[0] << 24) | (tempBuffer[1] << 16) | (tempBuffer[2] << 8) | tempBuffer[3];
           lastSenderId = (tempBuffer[4] << 24) | (tempBuffer[5] << 16) | (tempBuffer[6] << 8) | tempBuffer[7];
-          ESP_LOGI(TAG, "Parsed sender_id: %u from packet length %d", lastSenderId, packetLength);
+          ((WiFiManager*)wifi_manager_global)->setLastDestinationId(destinationId);
+          ESP_LOGI(TAG, "Parsed destination_id: %u, sender_id: %u from packet length %d", destinationId, lastSenderId, packetLength);
         }
 
         // Copy payload to user's buffer (skip header if needed)
@@ -180,6 +182,7 @@ bool LoRaCom::getMessage(char *buffer, size_t len, int* receivedLen) {
       if (result && (POST_EN_WHEN_LORA_RECEIVED || force_lora_trigger) && wifi_manager_global) {
         ESP_LOGI(TAG, "LoRa packet received, sending POST trigger");
         ((WiFiManager*)wifi_manager_global)->setLoRaRssi(abs(radioUnion.sRadio->getRSSI()));
+        ((WiFiManager*)wifi_manager_global)->setLastFullPacketLen(packetLength);  // Set full packet length for Flask server
         ((WiFiManager*)wifi_manager_global)->setSendPostOnLoRa(true);
       }
       return result;

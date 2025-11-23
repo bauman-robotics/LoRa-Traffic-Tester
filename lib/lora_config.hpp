@@ -56,6 +56,7 @@ extern unsigned long status_Interval;
 #define POST_SEND_SENDER_ID_AS_ALARM_TIME 1  // If 1, use sender ID as alarm time instead of ALARM_TIME + random
 #define OLD_LORA_PARS 0  // If 1, use old packet parsing (alarm_time=00), if 0, use new Meshtastic header parsing  === 1 ========================================
 #define PARSE_SENDER_ID_FROM_LORA_PACKETS 1  // If 1, parse sender_id from LoRa packet header when packet length > 7 bytes, use 1 otherwise === 2 ========================================
+#define USE_FLASK_SERVER 1  // If 1, use Flask server (84.252.143.212:5001); if 0, use PHP server (default)
 #define SERVER_PING_ENABLED 0  // Enable periodic ping of the server
 
 #define POST_INTERVAL_MS 10000  // Interval between POST requests in ms (if enabled)
