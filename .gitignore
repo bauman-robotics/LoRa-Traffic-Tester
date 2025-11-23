@@ -34,3 +34,5 @@ build/
 
 #meshtastic src 
 mesh_src/
+
+temp/
