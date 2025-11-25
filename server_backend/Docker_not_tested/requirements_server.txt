@@ -1,4 +1,0 @@
-# Установка зависимостей: pip install -r requirements_server.txt
-
-flask
-psycopg2-binary
