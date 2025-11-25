@@ -79,7 +79,8 @@ LoRa-Traffic-Tester/
 │   └── lora_flask_api/
 │       ├── lora_api.py          # REST API сервер на Flask
 │       ├── config.py            # Конфигурация базы данных PostgreSQL
-│       └── How_to_create_DB_Postgress.txt # Инструкция по настройке БД
+│       ├── How_to_create_DB_Postgress.txt # Инструкция по настройке БД (оригинал)
+│       └── How_to_create_DB_Postgress.md  # Инструкция по настройке БД (Markdown)
 ├── mesh_src/                    # Исходники для mesh функционала
 ├── Test_WiFi/                   # Тестовая конфигурация с WiFi
 │   ├── src/
