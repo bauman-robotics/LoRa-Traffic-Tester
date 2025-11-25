@@ -17,6 +17,7 @@
 
 ![Grafana Logs](pics/06_Traffic_monitor_Pro_3_signals.png)
 ![Gui](pics/07_LoRa_Mon_Gui.png)
+![Gui upd](pics/08_Grafana_Pro_dest_send_view.png)
 
 
 Этот проект реализует LoRa трансивер для беспроводной связи на базе ESP32-C3 и модуля SX1262. Поддерживает передачу и прием данных через Serial интерфейс, управление через команды, сохранение данных во flash память.
