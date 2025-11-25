@@ -123,9 +123,12 @@ bool LoRaCom::getMessage(char *buffer, size_t len, int* receivedLen) {
         // Extract destination_id and sender_id from header (Meshtastic format)
         // Header format: to(4), from(4), id(4), channel/flags(1+) ...
         if (packetLength >= 8) {
-          uint32_t destinationId = (tempBuffer[0] << 24) | (tempBuffer[1] << 16) | (tempBuffer[2] << 8) | tempBuffer[3];
-          lastSenderId = (tempBuffer[4] << 24) | (tempBuffer[5] << 16) | (tempBuffer[6] << 8) | tempBuffer[7];
+          uint32_t destinationId = (tempBuffer[3] << 24) | (tempBuffer[2] << 16) | (tempBuffer[1] << 8) | tempBuffer[0];          
           ((WiFiManager*)wifi_manager_global)->setLastDestinationId(destinationId);
+
+          uint32_t lastSenderId = (tempBuffer[7] << 24) | (tempBuffer[6] << 16) | (tempBuffer[5] << 8) | tempBuffer[4];
+          ((WiFiManager*)wifi_manager_global)->setLastSenderId(lastSenderId);
+          
           ESP_LOGI(TAG, "Parsed destination_id: %u, sender_id: %u from packet length %d", destinationId, lastSenderId, packetLength);
         }
 

@@ -201,7 +201,7 @@ void Control::loRaDataTask() {
         int oldLength = strlen(buffer);
         ESP_LOGI(TAG, "LoRa packet payload length: %d", oldLength);
         m_wifiManager->setLastLoRaPacketLen(oldLength);
-        m_wifiManager->setLastSenderId(1);
+        //m_wifiManager->setLastSenderId(1);
 
         interpretMessage(buffer, false);        // Process the message
         // Send the received data over serial
@@ -217,17 +217,18 @@ void Control::loRaDataTask() {
       } else {
         // Extract sender ID from packet header - new logic
         if (receivedLen >= 8) {
-          const uint8_t* packetData = reinterpret_cast<const uint8_t*>(buffer);
-          // Sender ID at offset 0x04 (4 bytes, little-endian 32-bit integer)
-          uint32_t senderId = packetData[4] | (packetData[5] << 8) | (packetData[6] << 16) | (packetData[7] << 24);
-          // Take last 2 bytes (mладшие 16 bits) of sender ID
-          uint16_t alarmValue = senderId & 0xFFFF;
-          m_wifiManager->setLastSenderId(alarmValue);
-          ESP_LOGI(TAG, "Extracted sender NodeID: %lu (alarm_time=%04X)", (unsigned long)senderId, alarmValue);
+          // const uint8_t* packetData = reinterpret_cast<const uint8_t*>(buffer);
+          // // Sender ID at offset 0x04 (4 bytes, little-endian 32-bit integer)
+          // //uint32_t senderId = packetData[4] | (packetData[5] << 8) | (packetData[6] << 16) | (packetData[7] << 24);
+          // uint32_t senderId = packetData[0] | (packetData[1] << 8) | (packetData[2] << 16) | (packetData[3] << 24);
+          // // Take last 2 bytes (mладшие 16 bits) of sender ID
+          // uint16_t alarmValue = senderId & 0xFFFF;
+          // m_wifiManager->setLastSenderId(senderId);
+          // ESP_LOGI(TAG, "Extracted sender NodeID: %lu (alarm_time=%04X)", (unsigned long)senderId, alarmValue);
         } else {
           // Packet too short (< 8 bytes), can't extract sender ID
-          m_wifiManager->setLastSenderId(0);
-          ESP_LOGI(TAG, "Packet too short (%d bytes < 8), can't extract sender ID, alarm_time=00", receivedLen);
+          //m_wifiManager->setLastSenderId(0);
+          //ESP_LOGI(TAG, "Packet too short (%d bytes < 8), can't extract sender ID, alarm_time=00", receivedLen);
         }
 
         // Set packet length for POST - use actual received length
