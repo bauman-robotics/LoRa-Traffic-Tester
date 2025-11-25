@@ -108,7 +108,7 @@ source venv/bin/activate
 Скрипт `flash.py` автоматически обнаружит ваш порт и произведет прошивку в три этапа:
 
 ```bash
-python flash.py
+python3 flash.py
 ```
 
 или явно указав порт:
