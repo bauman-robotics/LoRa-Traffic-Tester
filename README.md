@@ -17,7 +17,8 @@
 ## Описание
 
 ![Grafana Logs](pics/06_Traffic_monitor_Pro_3_signals.png)
-![Gui](pics/07_LoRa_Mon_Gui.png)
+![Gui](pics/07_LoRa_Mon_Gui_1.png)
+![Gui](pics/07_LoRa_Mon_Gui_2.png)
 ![Gui upd](pics/08_Grafana_Pro_dest_send_view.png)
 ![db veiw](pics/09_tab_info.png)
 ![Организация бесперебойного питания на базе Bq25606](pics/10_mesh_node_v3_sch.png)
