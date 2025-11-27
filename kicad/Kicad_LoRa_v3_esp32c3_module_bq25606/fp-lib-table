@@ -1,0 +1,5 @@
+(fp_lib_table
+  (version 7)
+  (lib (name "VIP_metr_Library")(type "KiCad")(uri "${KIPRJMOD}/footprints/VIP_metr_Library.pretty")(options "")(descr ""))
+  (lib (name "Lora_Library")(type "KiCad")(uri "${KIPRJMOD}/footprints/Lora_Library.pretty")(options "")(descr ""))
+)

@@ -1,0 +1,173 @@
+(footprint "SW_SMD_PUSH_V1"
+	(version 20240108)
+	(generator "pcbnew")
+	(generator_version "8.0")
+	(layer "F.Cu")
+	(descr "Microminiature SMT Side Actuated, 4.2 x 2.8 x 1.42mm, https://www.ckswitches.com/media/1482/kms.pdf")
+	(tags "Switch SPST KMS2")
+	(property "Reference" "REF**"
+		(at 0 -2.6 0)
+		(layer "F.SilkS")
+		(uuid "2fe948e6-17b5-40e5-b5e9-8ff06e3caba2")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Value" "SW_SMD_PUSH_V1"
+		(at 0 3.2 0)
+		(layer "F.Fab")
+		(uuid "445b484c-fc51-4075-908d-288024330b82")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Footprint" ""
+		(at 0 0 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "b76923d1-2274-41c0-8e5e-195de6140246")
+		(effects
+			(font
+				(size 1.27 1.27)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Datasheet" ""
+		(at 0 0 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "378cd82f-de8e-452c-808d-f21d16ca5967")
+		(effects
+			(font
+				(size 1.27 1.27)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Description" ""
+		(at 0 0 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "338815fb-1d3a-4070-bd65-fdf227faa1bd")
+		(effects
+			(font
+				(size 1.27 1.27)
+				(thickness 0.15)
+			)
+		)
+	)
+	(attr smd)
+	(fp_line
+		(start -2.21 -0.04)
+		(end -2.21 0.04)
+		(stroke
+			(width 0.12)
+			(type default)
+		)
+		(layer "F.SilkS")
+		(uuid "8aa9386f-13b5-4d2c-8597-6023d7180be6")
+	)
+	(fp_line
+		(start 2.21 -0.04)
+		(end 2.21 0.04)
+		(stroke
+			(width 0.12)
+			(type default)
+		)
+		(layer "F.SilkS")
+		(uuid "c07619da-3953-481a-91b8-77221f04e617")
+	)
+	(fp_rect
+		(start -2.55 -1.7)
+		(end 2.55 1.6)
+		(stroke
+			(width 0.05)
+			(type default)
+		)
+		(fill none)
+		(layer "F.CrtYd")
+		(uuid "5a3213b8-49e0-4eeb-9d3a-6d113c9e225f")
+	)
+	(fp_circle
+		(center 0 0)
+		(end 0.1 -0.9)
+		(stroke
+			(width 0.05)
+			(type default)
+		)
+		(fill none)
+		(layer "F.CrtYd")
+		(uuid "83de4fc2-402c-4931-9af6-069f77e9135b")
+	)
+	(fp_rect
+		(start -2.1 -1.71)
+		(end 2.1 1.59)
+		(stroke
+			(width 0.1)
+			(type default)
+		)
+		(fill none)
+		(layer "F.Fab")
+		(uuid "4dea2c73-ca38-4494-a320-e792832660eb")
+	)
+	(fp_text user "${REFERENCE}"
+		(at 0 0 0)
+		(layer "F.Fab")
+		(uuid "02dc3899-3d95-4c31-8e08-8ffb083568fb")
+		(effects
+			(font
+				(size 0.5 0.5)
+				(thickness 0.075)
+			)
+		)
+	)
+	(pad "1" smd roundrect
+		(at -2.05 -1.1)
+		(size 1.2 0.7)
+		(layers "F.Cu" "F.Paste" "F.Mask")
+		(roundrect_rratio 0.15)
+		(uuid "527b50fa-0e68-4b99-b93d-0f33c179e668")
+	)
+	(pad "1" smd roundrect
+		(at 2.05 -1.1)
+		(size 1.2 0.7)
+		(layers "F.Cu" "F.Paste" "F.Mask")
+		(roundrect_rratio 0.15)
+		(uuid "e140da40-ce5a-4bbc-90f0-8cab8354a4bb")
+	)
+	(pad "2" smd roundrect
+		(at -2.05 1)
+		(size 1.2 0.7)
+		(layers "F.Cu" "F.Paste" "F.Mask")
+		(roundrect_rratio 0.15)
+		(uuid "851fa360-e2b2-4823-a120-f5f191267d7f")
+	)
+	(pad "2" smd roundrect
+		(at 2.05 1)
+		(size 1.2 0.7)
+		(layers "F.Cu" "F.Paste" "F.Mask")
+		(roundrect_rratio 0.15)
+		(uuid "2f56b710-6887-42c7-9b05-591614028942")
+	)
+	(model "${KICAD8_3DMODEL_DIR}/Button_Switch_SMD.3dshapes/SW_SPST_EVQP2.step"
+		(offset
+			(xyz 0 0.05 0)
+		)
+		(scale
+			(xyz 0.9 1 0.8)
+		)
+		(rotate
+			(xyz 0 0 0)
+		)
+	)
+)

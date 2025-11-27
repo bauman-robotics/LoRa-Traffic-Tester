@@ -1,0 +1,154 @@
+(footprint "18650"
+	(version 20240108)
+	(generator "pcbnew")
+	(generator_version "8.0")
+	(layer "F.Cu")
+	(descr " https://aliexpress.ru/item/1005005680121253.html?sku_id=12000040193128610&spm=a2g2w.productlist.search_results.9.41fc301bUPHP4Z")
+	(tags "18650 Battery Holder")
+	(property "Reference" "REF**"
+		(at -28.4 -5.4 180)
+		(layer "F.SilkS")
+		(uuid "1d66314b-7400-42c0-aba2-f5f5e1d0a73b")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Value" "18650"
+		(at -13.5 -7.5 0)
+		(layer "F.Fab")
+		(uuid "678f6c3f-888e-4580-afb0-4b2f73de4691")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Footprint" ""
+		(at -86.4 -75.25 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "85453e39-7c94-4d1d-bb2f-ee9568133230")
+		(effects
+			(font
+				(size 1.27 1.27)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Datasheet" "https://aliexpress.ru/item/1005005680121253.html?sku_id=12000040193128610&spm=a2g2w.productlist.search_results.9.41fc301bUPHP4Z"
+		(at -86.4 -75.25 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "a18411eb-fd90-40bf-8dc7-614a59b15ba1")
+		(effects
+			(font
+				(size 1.27 1.27)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Description" "Модуль бистабильного переключателя"
+		(at -86.4 -75.25 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "3461d16e-510a-4097-bc60-540c6793b0af")
+		(effects
+			(font
+				(size 1.27 1.27)
+				(thickness 0.15)
+			)
+		)
+	)
+	(attr through_hole)
+	(fp_rect
+		(start -34.5 -9.25)
+		(end 34.5 9.25)
+		(stroke
+			(width 0.1)
+			(type default)
+		)
+		(fill none)
+		(layer "F.SilkS")
+		(uuid "e31be372-1e51-4a2e-a963-9c6f3dd1de35")
+	)
+	(fp_line
+		(start -34.5 9.25)
+		(end 34.5 -9.25)
+		(stroke
+			(width 0.1)
+			(type default)
+		)
+		(layer "F.Fab")
+		(uuid "1d49d651-e98e-42f7-82ab-bf9e106a59e3")
+	)
+	(fp_line
+		(start -31.5 2)
+		(end -29.5 2)
+		(stroke
+			(width 0.1)
+			(type default)
+		)
+		(layer "F.Fab")
+		(uuid "f9864805-6174-4694-ad95-2d36f804705f")
+	)
+	(fp_line
+		(start -30.5 1)
+		(end -30.5 3)
+		(stroke
+			(width 0.1)
+			(type default)
+		)
+		(layer "F.Fab")
+		(uuid "0467a033-30d2-4751-968c-c3812f12e89a")
+	)
+	(fp_line
+		(start 34.5 9.25)
+		(end -34.5 -9.25)
+		(stroke
+			(width 0.1)
+			(type default)
+		)
+		(layer "F.Fab")
+		(uuid "1f7c3064-b1f4-4674-8550-5099e3648464")
+	)
+	(fp_circle
+		(center -30.5 2)
+		(end -30.5 0.5)
+		(stroke
+			(width 0.1)
+			(type default)
+		)
+		(fill none)
+		(layer "F.Fab")
+		(uuid "c1183cea-2aca-4d71-8d8b-493a794ae879")
+	)
+	(fp_text user "${REFERENCE}"
+		(at -24.5 -7.5 0)
+		(layer "F.Fab")
+		(uuid "2f551d3c-389a-4a40-9bfa-8c3e1b7534d1")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(model "${KIPRJMOD}/3dmodels/18650-battery-01a-v1.step"
+		(offset
+			(xyz -33 0 10)
+		)
+		(scale
+			(xyz 1 1 1)
+		)
+		(rotate
+			(xyz 0 0 0)
+		)
+	)
+)
