@@ -45,7 +45,7 @@ extern unsigned long status_Interval;
 #define USE_SYSTEM_NETWORK 1
 
 #ifdef USE_SYSTEM_NETWORK
-#include "../../network_definitions.h"
+#include "../../../network_definitions.h"
 #else
 #include "fake_network_definitions.h"  // Fallback defaults
 #endif

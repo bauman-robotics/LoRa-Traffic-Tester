@@ -19,6 +19,7 @@
 ![Gui](pics/07_LoRa_Mon_Gui.png)
 ![Gui upd](pics/08_Grafana_Pro_dest_send_view.png)
 ![db veiw](pics/09_tab_info.png)
+![sch veiw](pics/10_mesh_node_v3_sch.png)
 
 
 Этот проект реализует LoRa трансивер для беспроводной связи на базе ESP32-C3 и модуля SX1262. Поддерживает передачу и прием данных через Serial интерфейс, управление через команды, сохранение данных во flash память.
@@ -45,12 +46,10 @@ LoRa-Traffic-Tester/
 ├── firmware/                    # Firmware для ESP32
 │   ├── platformio.ini           # Конфигурация PlatformIO
 │   ├── config.json              # Конфигурационный файл ESP32
-│   ├── gui_config.json          # Конфигурация GUI
 │   ├── requirements.txt         # Зависимости Python
 │   ├── build_script.py          # Скрипт сборки ESP32
 │   ├── upload_script.py          # Скрипт загрузки на ESP32
 │   ├── clean_script.py          # Скрипт очистки
-│   ├── gui.py                   # GUI для управления проектом
 │   ├── .gitignore               # Игнорируемые файлы Git
 │   ├── src/
 │   │   └── main.cpp             # Основной файл ESP32
@@ -91,6 +90,9 @@ LoRa-Traffic-Tester/
 │   │   ├── flash.py
 │   │   └── mesh_bin/
 │   └── LoRa-Traffic-Tester.code-workspace # Настройки рабочего пространства VS Code
+├── gui/                         # Графический интерфейс для управления
+│   ├── gui.py                   # GUI для управления проектом
+│   └── gui_config.json          # Конфигурация GUI
 ├── server_backend/              # Серверная часть проекта
 │   └── lora_flask_api/
 │       ├── lora_api.py          # REST API сервер на Flask
