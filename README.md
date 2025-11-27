@@ -125,8 +125,7 @@ LoRa-Traffic-Tester/
 │       ├── symbols/
 │       │   ├── Lora_lib.kicad_sym
 │       │   └── VIP_metr_lib.kicad_sym
-│       ├── pics/
-│       └── ESP32C3-E22-Mesh-Node_v3-backups/
+│       └── pics/
 └── pics/                        # Изображения и скриншоты проекта
 ```
 
