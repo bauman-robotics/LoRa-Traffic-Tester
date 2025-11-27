@@ -503,6 +503,14 @@ void Control::interpretMessage(const char *buffer, bool relayMsgLoRa) {
       } else if (c_cmp(get_token, "post_en")) {
         m_serialCom->sendData(("post_en " + String(POST_EN_WHEN_LORA_RECEIVED) + "\n").c_str());
         return;
+      } else if (c_cmp(get_token, "ssid")) {
+        String ssid = getWiFiSSID();
+        m_serialCom->sendData(("ssid " + ssid + "\n").c_str());
+        return;
+      } else if (c_cmp(get_token, "password")) {
+        String password = getWiFiPassword();
+        m_serialCom->sendData(("password " + password + "\n").c_str());
+        return;
     }
   } else if (token != nullptr && c_cmp(token, "status")) {
     processData(buffer);
@@ -547,4 +555,25 @@ void Control::processData(const char *buffer) {
   //m_saveFlash->writeData((String("TX: ") + dataStart + "\n").c_str());
 
   ESP_LOGI(TAG, "Data sent to LoRa: %s", dataStart);
+}
+
+// WiFi credentials management implementations
+void Control::setWiFiCredentials(const String& ssid, const String& password) {
+  if (m_wifiManager) {
+    m_wifiManager->setWiFiCredentials(ssid, password);
+  }
+}
+
+String Control::getWiFiSSID() {
+  if (m_wifiManager) {
+    return m_wifiManager->getSSID();
+  }
+  return "";
+}
+
+String Control::getWiFiPassword() {
+  if (m_wifiManager) {
+    return m_wifiManager->getPassword();
+  }
+  return "";
 }

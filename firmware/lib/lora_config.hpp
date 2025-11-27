@@ -42,7 +42,7 @@ extern unsigned long status_Interval;
 // Edit lib/network_definitions.h to change settings at compile time
 // If no main file, edit lib/fake_network_definitions.h instead
 
-#define USE_SYSTEM_NETWORK 1
+#define USE_SYSTEM_NETWORK
 
 #ifdef USE_SYSTEM_NETWORK
 #include "../../../network_definitions.h"

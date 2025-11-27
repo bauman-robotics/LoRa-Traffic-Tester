@@ -13,7 +13,7 @@
 class Commander;  // Forward declaration
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "saveFlash.hpp"
+#include "../fileSystem/saveFlash.hpp"
 
 #define c_cmp(a, b) (strcmp(a, b) == 0)
 
@@ -48,6 +48,20 @@ class Control {
   void begin();
 
   void setStatusEnabled(bool enabled) { statusEnabled = enabled; }
+
+  // WiFi credentials management
+  void setWiFiCredentials(const String& ssid, const String& password);
+  String getWiFiSSID();
+  String getWiFiPassword();
+
+  // WiFi status getters
+  bool isWiFiEnabled() const { return wifi_enabled; }
+  bool isWiFiConnected() const { return m_wifiManager ? m_wifiManager->isConnected() : false; }
+  bool isPostEnabled() const { return m_wifiManager ? m_wifiManager->isPostEnabled() : false; }
+  String getLastHttpResult() const { return m_wifiManager ? m_wifiManager->getLastHttpResult() : ""; }
+  bool getPostOnLora() const { return post_on_lora; }
+  bool isStatusEnabled() const { return statusEnabled; }
+  LoRaCom* getLoRaCom() { return m_LoRaCom; }
 
  private:
   SerialCom *m_serialCom;

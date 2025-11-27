@@ -35,6 +35,7 @@ class Commander {
   void handle_command_help();  // Command handler for "help"
   void handle_update();        // Command handler for "update" parameters
   void handle_set();           // Command handler for "set" parameters
+  void handle_get();           // Command handler for "get" parameters
   void handle_mode();  // Command handler for "mode" (eg: transmit, receive,
                        // transcieve, spectrum scan, etc")
 
@@ -49,11 +50,31 @@ class Commander {
   void handle_set_help();
   void handle_set_OUTPUT();
 
+  // ----- Get Handlers -----
+  void handle_get_help();
+  void handle_get_gain();
+  void handle_get_freq();
+  void handle_get_sf();
+  void handle_get_bw();
+  void handle_get_status();
+  void handle_get_interval();
+  void handle_get_wifi_en();
+  void handle_get_post_mode();
+  void handle_get_post_en();
+  void handle_get_wifi_status();
+  void handle_get_http_status();
+  void handle_get_ssid();
+  void handle_get_password();
+
+  // ----- WiFi Handlers -----
+  void handle_set_wifi_credentials();
+
   void handle_help(const HandlerMap *handler);
 
-  static const HandlerMap command_handler[5];
+  static const HandlerMap command_handler[6];
   static const HandlerMap update_handler[6];
-  static const HandlerMap set_handler[3];
+  static const HandlerMap set_handler[4];
+  static const HandlerMap get_handler[15];
 
   void runMappedCommand(char *command, const HandlerMap *handler);
 

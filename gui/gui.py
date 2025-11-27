@@ -56,6 +56,10 @@ class LoRaTransceiverGUI:
         config_frame = ttk.Frame(self.notebook)
         self.notebook.add(config_frame, text="Configuration")
 
+        # WiFi Configuration tab
+        wifi_frame = ttk.Frame(self.notebook)
+        self.notebook.add(wifi_frame, text="WiFi Settings")
+
         # Debug tab for network/debug logs
         debug_frame = ttk.Frame(self.notebook)
         self.notebook.add(debug_frame, text="Debug")
@@ -209,6 +213,52 @@ class LoRaTransceiverGUI:
         self.clear_btn = ttk.Button(log_controls_frame, text="Clear Log", command=self.clear_log)
         self.clear_btn.pack(side="right")
 
+        # WiFi Configuration tab content
+        wifi_main_frame = ttk.Frame(wifi_frame)
+        wifi_main_frame.pack(fill="both", expand=True, padx=10, pady=10)
+
+        # WiFi credentials section
+        wifi_credentials_frame = ttk.LabelFrame(wifi_main_frame, text="WiFi Credentials", padding="10")
+        wifi_credentials_frame.pack(fill="x", pady=5)
+
+        ttk.Label(wifi_credentials_frame, text="SSID:").grid(row=0, column=0, sticky="w", padx=5, pady=5)
+        self.wifi_ssid_entry = ttk.Entry(wifi_credentials_frame, width=30)
+        self.wifi_ssid_entry.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
+
+        ttk.Label(wifi_credentials_frame, text="Password:").grid(row=1, column=0, sticky="w", padx=5, pady=5)
+        self.wifi_password_entry = ttk.Entry(wifi_credentials_frame, width=30, show="*")
+        self.wifi_password_entry.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
+
+        # Buttons for WiFi credentials
+        wifi_buttons_frame = ttk.Frame(wifi_credentials_frame)
+        wifi_buttons_frame.grid(row=2, column=0, columnspan=2, pady=10)
+
+        self.set_wifi_credentials_btn = ttk.Button(wifi_buttons_frame, text="Set WiFi Credentials", command=self.set_wifi_credentials)
+        self.set_wifi_credentials_btn.pack(side="left", padx=5)
+
+        self.get_wifi_credentials_btn = ttk.Button(wifi_buttons_frame, text="Get Current Credentials", command=self.get_wifi_credentials)
+        self.get_wifi_credentials_btn.pack(side="left", padx=5)
+
+        # WiFi status section
+        wifi_status_frame = ttk.LabelFrame(wifi_main_frame, text="WiFi Status", padding="10")
+        wifi_status_frame.pack(fill="x", pady=5)
+
+        self.wifi_current_ssid_label = ttk.Label(wifi_status_frame, text="Current SSID: Not loaded")
+        self.wifi_current_ssid_label.pack(anchor="w", pady=2)
+
+        self.wifi_current_password_label = ttk.Label(wifi_status_frame, text="Current Password: Not loaded")
+        self.wifi_current_password_label.pack(anchor="w", pady=2)
+
+        # WiFi control buttons
+        wifi_control_frame = ttk.Frame(wifi_main_frame)
+        wifi_control_frame.pack(fill="x", pady=10)
+
+        self.refresh_wifi_status_btn = ttk.Button(wifi_control_frame, text="Refresh WiFi Status", command=self.refresh_wifi_status)
+        self.refresh_wifi_status_btn.pack(side="left", padx=5)
+
+        self.test_wifi_connection_btn = ttk.Button(wifi_control_frame, text="Test Connection", command=self.test_wifi_connection)
+        self.test_wifi_connection_btn.pack(side="left", padx=5)
+
     def get_ports(self):
         ports = [port.device for port in serial.tools.list_ports.comports() if 'ACM' in port.device]
         if "/dev/ttyACM0" in ports:
@@ -324,6 +374,15 @@ class LoRaTransceiverGUI:
                     elif data.startswith("post_en "):
                         post_en_val = data.split()[1]
                         self.log(f"Synced post_en define: {post_en_val}")
+                    elif data.startswith("ssid "):
+                        ssid_val = data.split(" ", 1)[1]
+                        self.wifi_current_ssid_label.config(text=f"Current SSID: {ssid_val}")
+                        self.log(f"Synced SSID: {ssid_val}")
+                    elif data.startswith("password "):
+                        password_val = data.split(" ", 1)[1]
+                        masked_password = "*" * len(password_val) if password_val else "(empty)"
+                        self.wifi_current_password_label.config(text=f"Current Password: {masked_password}")
+                        self.log(f"Synced password: {'*' * len(password_val) if password_val else '(empty)'}")
                     else:
                         self.log("RX: " + data)
                         # Also log to debug tab if network related
@@ -529,6 +588,42 @@ class LoRaTransceiverGUI:
             except:
                 pass
         return default_config
+
+    # WiFi configuration methods
+    def set_wifi_credentials(self):
+        ssid = self.wifi_ssid_entry.get().strip()
+        password = self.wifi_password_entry.get().strip()
+
+        if not ssid:
+            messagebox.showerror("Error", "SSID cannot be empty.")
+            return
+
+        if len(password) < 8:
+            messagebox.showerror("Error", "Password must be at least 8 characters long.")
+            return
+
+        command = f"command set wifi_credentials {ssid} {password}"
+        self.send_command(command)
+        self.log(f"Setting WiFi credentials: SSID={ssid}")
+        messagebox.showinfo("Success", "WiFi credentials sent to device. They will be saved to flash memory.")
+
+    def get_wifi_credentials(self):
+        self.send_command("get ssid")
+        self.root.after(100, lambda: self.send_command("get password"))
+        self.log("Requesting current WiFi credentials from device")
+
+    def refresh_wifi_status(self):
+        self.get_wifi_credentials()
+        self.root.after(200, self.get_wifi_status)
+        self.log("Refreshing WiFi status")
+
+    def test_wifi_connection(self):
+        # Send command to enable WiFi temporarily for testing
+        command = "command set wifi_en 1"
+        self.send_command(command)
+        self.log("Testing WiFi connection - enabling WiFi")
+        # Check status after a delay
+        self.root.after(5000, self.get_wifi_status)
 
 if __name__ == "__main__":
     root = tk.Tk()

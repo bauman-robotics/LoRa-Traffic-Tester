@@ -19,6 +19,7 @@ class WiFiManager {
   void setLastLoRaPacketLen(int len);
   int getLastLoRaPacketLen();
   void enablePost(bool state);
+  bool isPostEnabled() { return postEnabled; }
   void setSendPostOnLoRa(bool value) { sendPostOnLoRa = value; }
   void setPostOnLora(bool value);
   void setLoRaRssi(int32_t rssi) { loraRssi = rssi; }
@@ -27,10 +28,16 @@ class WiFiManager {
   void setLastFullPacketLen(int len) { lastFullPacketLen = len; }
   int32_t getLastFullPacketLen() { return lastFullPacketLen; }
   String getSSID() const { return ssid; }
+  String getPassword() const { return password; }
   String getAPIKey() const { return apiKey; }
   String getServerURL() const { return serverProtocol + "://" + serverIP + "/" + serverPath; }
   String getLastHttpResult() const { return lastHttpResult; }
   void sendSinglePost();
+
+  // WiFi credentials persistence
+  void saveWiFiCredentials();
+  void loadWiFiCredentials();
+  void setWiFiCredentials(const String& new_ssid, const String& new_password);
 
  private:
   void httpPostTask();

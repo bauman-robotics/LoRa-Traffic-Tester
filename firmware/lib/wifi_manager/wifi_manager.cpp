@@ -1,5 +1,6 @@
 #include "wifi_manager.hpp"
 #include <string>
+#include "LittleFS.h"
 
 // LoRa packet payload length storage
 int lastLoRaPacketLen = 0;
@@ -18,9 +19,10 @@ int WiFiManager::getLastLoRaPacketLen() {
 }
 
 void WiFiManager::loadSettings() {
-  ssid = DEFAULT_WIFI_SSID;
-  password = DEFAULT_WIFI_PASSWORD;
+  // Try to load WiFi credentials from flash first, fall back to defaults
+  loadWiFiCredentials();
 
+  // Load server settings
 #if USE_FLASK_SERVER
   // Use Flask server settings
   apiKey = DEFAULT_FLASK_API_KEY;
@@ -42,14 +44,14 @@ void WiFiManager::loadSettings() {
 #endif
   ESP_LOGI(TAG, "Settings loaded from defaults");
   std::string settings = "Network defaults:\n";
-  settings += "SSID: " + std::string(DEFAULT_WIFI_SSID) + "\n";
+  settings += "SSID: " + std::string(ssid.c_str()) + "\n";
   settings += "Password: ****\n";
-  settings += "API key: " + std::string(DEFAULT_API_KEY) + "\n";
-  settings += "User ID: " + std::string(DEFAULT_USER_ID) + "\n";
-  settings += "User location: " + std::string(DEFAULT_USER_LOCATION) + "\n";
+  settings += "API key: " + std::string(DEFAULT_FLASK_API_KEY) + "\n";
+  settings += "User ID: " + std::string(DEFAULT_FLASK_USER_ID) + "\n";
+  settings += "User location: " + std::string(DEFAULT_FLASK_USER_LOCATION) + "\n";
   settings += "Server protocol: " + std::string(DEFAULT_SERVER_PROTOCOL) + "\n";
-  settings += "Server IP: " + std::string(DEFAULT_SERVER_IP) + "\n";
-  settings += "Server path: " + std::string(DEFAULT_SERVER_PATH);
+  settings += "Server IP: " + std::string(DEFAULT_FLASK_SERVER_IP) + "\n";
+  settings += "Server path: " + std::string(DEFAULT_FLASK_SERVER_PATH);
   ESP_LOGI(TAG, "%s", settings.c_str());
   ESP_LOGI(TAG, "LoRa defines:");
   ESP_LOGI(TAG, "  FAKE_LORA=%d", FAKE_LORA);
@@ -70,6 +72,74 @@ void WiFiManager::loadSettings() {
   ESP_LOGI(TAG, "  COLD_AS_LORA_PAYLOAD_LEN=%d", COLD_AS_LORA_PAYLOAD_LEN);
 }
 
+void WiFiManager::saveWiFiCredentials() {
+  // Save WiFi credentials to LittleFS
+  if (!LittleFS.begin()) {
+    ESP_LOGE(TAG, "Failed to initialize LittleFS for WiFi credentials save");
+    return;
+  }
+
+  File wifiFile = LittleFS.open("/wifi_credentials.txt", FILE_WRITE);
+  if (!wifiFile) {
+    ESP_LOGE(TAG, "Failed to open WiFi credentials file for writing");
+    return;
+  }
+
+  wifiFile.println(ssid);
+  wifiFile.println(password);
+  wifiFile.close();
+
+  ESP_LOGI(TAG, "WiFi credentials saved to flash: SSID=%s", ssid.c_str());
+}
+
+void WiFiManager::loadWiFiCredentials() {
+  // Load WiFi credentials from LittleFS, fall back to defaults if not found or invalid
+  if (!LittleFS.begin()) {
+    ESP_LOGW(TAG, "Failed to initialize LittleFS for WiFi credentials load, using defaults");
+    ssid = DEFAULT_WIFI_SSID;
+    password = DEFAULT_WIFI_PASSWORD;
+    return;
+  }
+
+  File wifiFile = LittleFS.open("/wifi_credentials.txt", FILE_READ);
+  if (!wifiFile) {
+    ESP_LOGI(TAG, "WiFi credentials file not found, using defaults");
+    ssid = DEFAULT_WIFI_SSID;
+    password = DEFAULT_WIFI_PASSWORD;
+    return;
+  }
+
+  String loaded_ssid = wifiFile.readStringUntil('\n');
+  String loaded_password = wifiFile.readStringUntil('\n');
+  wifiFile.close();
+
+  // Trim whitespace
+  loaded_ssid.trim();
+  loaded_password.trim();
+
+  // Validate loaded credentials - if valid, use them; otherwise use defaults
+  if (loaded_ssid.length() > 0 && loaded_password.length() >= 8) {
+    ssid = loaded_ssid;
+    password = loaded_password;
+    ESP_LOGI(TAG, "WiFi credentials loaded from flash: SSID=%s", ssid.c_str());
+  } else {
+    ESP_LOGW(TAG, "Invalid WiFi credentials in flash, using defaults");
+    ssid = DEFAULT_WIFI_SSID;
+    password = DEFAULT_WIFI_PASSWORD;
+  }
+}
+
+void WiFiManager::setWiFiCredentials(const String& new_ssid, const String& new_password) {
+  if (new_ssid.length() > 0 && new_password.length() >= 8) {
+    ssid = new_ssid;
+    password = new_password;
+    saveWiFiCredentials();
+    ESP_LOGI(TAG, "WiFi credentials updated: SSID=%s", ssid.c_str());
+  } else {
+    ESP_LOGE(TAG, "Invalid WiFi credentials provided");
+  }
+}
+
 bool WiFiManager::connect() {
 #if WIFI_ENABLE == 0
   ESP_LOGI(TAG, "WiFi disabled by WIFI_ENABLE=0");
@@ -80,13 +150,52 @@ bool WiFiManager::connect() {
   ESP_LOGI(TAG, "Scanning WiFi networks...");
   int n = WiFi.scanNetworks();
   bool foundTarget = false;
+  
   for (int i = 0; i < n; ++i) {
-    ESP_LOGI(TAG, "Found network: %s (%ddBm)", WiFi.SSID(i).c_str(), WiFi.RSSI(i));
+    String encryption;
+    switch (WiFi.encryptionType(i)) {
+      case WIFI_AUTH_OPEN: encryption = "Open"; break;
+      case WIFI_AUTH_WEP: encryption = "WEP"; break;
+      case WIFI_AUTH_WPA_PSK: encryption = "WPA"; break;
+      case WIFI_AUTH_WPA2_PSK: encryption = "WPA2"; break;
+      case WIFI_AUTH_WPA_WPA2_PSK: encryption = "WPA/WPA2"; break;
+      case WIFI_AUTH_WPA2_ENTERPRISE: encryption = "WPA2-Enterprise"; break;
+      case WIFI_AUTH_WPA3_PSK: encryption = "WPA3"; break;
+      default: encryption = "Unknown";
+    }
+
+    // ИСПРАВЛЕННЫЙ КОД ДЛЯ ОПРЕДЕЛЕНИЯ ШИРИНЫ КАНАЛА
+    String channelWidth = "20MHz";
+    uint8_t primaryChannel = (uint8_t)WiFi.channel(i);
+    wifi_second_chan_t secondChannel = WIFI_SECOND_CHAN_NONE;
+    
+    // Используем правильные типы
+    esp_err_t result = esp_wifi_get_channel(&primaryChannel, &secondChannel);
+    
+    if (result == ESP_OK) {
+      if (secondChannel == WIFI_SECOND_CHAN_ABOVE) {
+        channelWidth = "40MHz (above)";
+      } else if (secondChannel == WIFI_SECOND_CHAN_BELOW) {
+        channelWidth = "40MHz (below)";
+      } else {
+        channelWidth = "20MHz";
+      }
+    } else {
+      channelWidth = "Unknown";
+    }
+
+    // ВЫВОДИМ ШИРИНУ КАНАЛА В ЛОГ
+    ESP_LOGI(TAG, "Network: %-20s RSSI: %3ddBm Ch: %2d Width: %-12s Auth: %-15s",
+             WiFi.SSID(i).c_str(), WiFi.RSSI(i), WiFi.channel(i), 
+             channelWidth.c_str(), encryption.c_str());
+
     if (WiFi.SSID(i) == ssid) {
       foundTarget = true;
-      ESP_LOGI(TAG, "*** TARGET NETWORK FOUND: %s at %ddBm", ssid.c_str(), WiFi.RSSI(i));
+      ESP_LOGI(TAG, "*** TARGET FOUND: %s - Channel %d, %s", 
+               ssid.c_str(), WiFi.channel(i), channelWidth.c_str());
     }
   }
+  
   if (!foundTarget) {
     ESP_LOGW(TAG, "TARGET NETWORK %s NOT FOUND in %d scanned networks!", ssid.c_str(), n);
   }
@@ -268,16 +377,12 @@ void WiFiManager::doHttpPost() {
   long cold_value;
   if (post_on_lora_mm && (COLD_AS_LORA_PAYLOAD_LEN || !OLD_LORA_PARS)) {
     cold_value = getLastLoRaPacketLen();
-    if (!OLD_LORA_PARS) {
-      ESP_LOGI(TAG, "NEW_LORA_PARS: Using LoRa payload length as cold: %ld", cold_value);
-    } else {
-      ESP_LOGI(TAG, "Using LoRa payload length as cold: %ld", cold_value);
-    }
+    ESP_LOGD(TAG, "Using LoRa payload length as cold: %ld", cold_value);
   } else {
     cold_value = cold_counter++;
-    ESP_LOGI(TAG, "Using cold counter: %ld", cold_value);
+    ESP_LOGD(TAG, "Using cold counter: %ld", cold_value);
   }
-  ESP_LOGI(TAG, "Alarm time: %d", alarm_value);
+  ESP_LOGD(TAG, "Alarm time: %d", alarm_value);
 
 #if USE_FLASK_SERVER
   // Flask server - Enhanced JSON format with detailed LoRa packet info (HEX string format)
@@ -304,7 +409,7 @@ void WiFiManager::doHttpPost() {
   ESP_LOGI(TAG, "Using PHP server with form-encoded POST data");
 #endif
 
-  ESP_LOGI(TAG, "Preparing POST: cold=%ld, hot=%ld, path=%s, server=%s",
+  ESP_LOGD(TAG, "Preparing POST: cold=%ld, hot=%ld, path=%s, server=%s",
            cold_value, hot_value, path.c_str(), serverIP.c_str());
   ESP_LOGI(TAG, "CURL example: curl -X POST -H 'Content-Type: application/x-www-form-urlencoded' -d '%s' %s://%s:%d/%s",
            postData.c_str(), serverProtocol.c_str(), serverIP.c_str(), port, serverPath.c_str());
@@ -362,9 +467,18 @@ void WiFiManager::doHttpPost() {
     client.stop();
 
     if (response.indexOf("200") >= 0) {
-      lastHttpResult = "Success: HTTP 200 (cold=" + String(cold_value) + ", hot=" + String(hot_counter) + ")";
+#if USE_FLASK_SERVER
+      lastHttpResult = "Success: HTTP 200 (Flask JSON sent: sender_nodeid=" + uint32ToHexString(last_sender_id) +
+                      ", destination_nodeid=" + uint32ToHexString(last_destination_id) +
+                      ", full_packet_len=" + String(cold_value) +
+                      ", signal_level_dbm=" + String(loraRssi) + ")";
+      ESP_LOGI(TAG, "POST success, Flask JSON: sender_nodeid=%s, destination_nodeid=%s, full_packet_len=%ld, signal_level_dbm=%d",
+               uint32ToHexString(last_sender_id).c_str(), uint32ToHexString(last_destination_id).c_str(), cold_value, loraRssi);
+#else
+      lastHttpResult = "Success: HTTP 200 (PHP form sent: cold=" + String(cold_value) + ", hot=" + String(hot_counter) + ")";
+      ESP_LOGI(TAG, "POST success, PHP form: cold=%ld, hot=%lu", cold_value, hot_counter);
+#endif
       hot_counter++;
-      ESP_LOGI(TAG, "POST success, cold=%ld, hot=%lu", cold_value, hot_counter);
     } else {
       lastHttpResult = "Failed: Server error";
       ESP_LOGE(TAG, "POST failed: response len=%d", response.length());
