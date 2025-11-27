@@ -19,7 +19,7 @@
 ![Gui](pics/07_LoRa_Mon_Gui.png)
 ![Gui upd](pics/08_Grafana_Pro_dest_send_view.png)
 ![db veiw](pics/09_tab_info.png)
-![sch veiw](pics/10_mesh_node_v3_sch.png)
+![Организация бесперибойного питания на базе Bq25606](pics/10_mesh_node_v3_sch.png)
 
 
 Этот проект реализует LoRa трансивер для беспроводной связи на базе ESP32-C3 и модуля SX1262. Поддерживает передачу и прием данных через Serial интерфейс, управление через команды, сохранение данных во flash память.
