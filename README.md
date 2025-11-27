@@ -42,61 +42,90 @@
 ```
 LoRa-Traffic-Tester/
 ├── README.md                    # Этот файл
-├── platformio.ini               # Конфигурация PlatformIO
-├── config.json                  # Конфигурационный файл ESP32
-├── gui_config.json              # Конфигурация GUI
-├── requirements.txt             # Зависимости Python
-├── build_script.py              # Скрипт сборки ESP32
-├── upload_script.py             # Скрипт загрузки на ESP32
-├── clean_script.py              # Скрипт очистки
-├── gui.py                       # GUI для управления проектом
-├── .gitignore                   # Игнорируемые файлы Git
-├── src/
-│   └── main.cpp                 # Основной файл ESP32
-├── lib/
-│   ├── lora_config.hpp          # Конфигурация LoRa и GPIO
-│   ├── commander/               # Модуль команд
-│   │   ├── commander.hpp
-│   │   └── commander.cpp
-│   ├── control/                 # Основной контроллер
-│   │   ├── control.hpp
-│   │   └── control.cpp
-│   ├── LoRaCom/                 # LoRa коммуникации
-│   │   ├── LoRaCom.hpp
-│   │   └── LoRaCom.cpp
-│   ├── SerialCom/               # Serial коммуникации
-│   │   ├── SerialCom.hpp
-│   │   └── SerialCom.cpp
-│   ├── fileSystem/              # Работа с flash памятью
-│   │   ├── saveFlash.hpp
-│   │   └── saveFlash.cpp
-│   ├── wifi_manager/            # WiFi управление
-│   │   ├── wifi_manager.hpp
-│   │   └── wifi_manager.cpp
-│   └── fake_network_definitions.h # Заглушка сетевых определений
-├── bin/                         # Скомпилированные бинарники ESP32
-├── pics/                        # Изображения и скриншоты проекта
+├── firmware/                    # Firmware для ESP32
+│   ├── platformio.ini           # Конфигурация PlatformIO
+│   ├── config.json              # Конфигурационный файл ESP32
+│   ├── gui_config.json          # Конфигурация GUI
+│   ├── requirements.txt         # Зависимости Python
+│   ├── build_script.py          # Скрипт сборки ESP32
+│   ├── upload_script.py          # Скрипт загрузки на ESP32
+│   ├── clean_script.py          # Скрипт очистки
+│   ├── gui.py                   # GUI для управления проектом
+│   ├── .gitignore               # Игнорируемые файлы Git
+│   ├── src/
+│   │   └── main.cpp             # Основной файл ESP32
+│   ├── lib/
+│   │   ├── lora_config.hpp      # Конфигурация LoRa и GPIO
+│   │   ├── commander/           # Модуль команд
+│   │   │   ├── commander.hpp
+│   │   │   └── commander.cpp
+│   │   ├── control/             # Основной контроллер
+│   │   │   ├── control.hpp
+│   │   │   └── control.cpp
+│   │   ├── LoRaCom/             # LoRa коммуникации
+│   │   │   ├── LoRaCom.hpp
+│   │   │   └── LoRaCom.cpp
+│   │   ├── SerialCom/           # Serial коммуникации
+│   │   │   ├── SerialCom.hpp
+│   │   │   └── SerialCom.cpp
+│   │   ├── fileSystem/          # Работа с flash памятью
+│   │   │   ├── saveFlash.hpp
+│   │   │   └── saveFlash.cpp
+│   │   ├── wifi_manager/        # WiFi управление
+│   │   │   ├── wifi_manager.hpp
+│   │   │   └── wifi_manager.cpp
+│   │   └── fake_network_definitions.h # Заглушка сетевых определений
+│   ├── bin/                     # Скомпилированные бинарники ESP32
+│   ├── mesh_src/                # Исходники для mesh функционала
+│   ├── Test_WiFi/               # Тестовая конфигурация с WiFi
+│   │   ├── src/
+│   │   ├── lib/
+│   │   ├── bin/
+│   │   ├── platformio.ini
+│   │   ├── README.md
+│   │   ├── requirements.txt
+│   │   └── scripts/
+│   ├── upload_mesh/             # Инструменты для загрузки mesh
+│   │   ├── README.md
+│   │   ├── requirements.txt
+│   │   ├── flash.py
+│   │   └── mesh_bin/
+│   └── LoRa-Traffic-Tester.code-workspace # Настройки рабочего пространства VS Code
 ├── server_backend/              # Серверная часть проекта
 │   └── lora_flask_api/
 │       ├── lora_api.py          # REST API сервер на Flask
 │       ├── config.py            # Конфигурация базы данных PostgreSQL
-│       ├── How_to_create_DB_Postgress.txt # Инструкция по настройке БД (оригинал)
-│       └── How_to_create_DB_Postgress.md  # Инструкция по настройке БД (Markdown)
-├── mesh_src/                    # Исходники для mesh функционала
-├── Test_WiFi/                   # Тестовая конфигурация с WiFi
-│   ├── src/
-│   ├── lib/
-│   ├── bin/
-│   ├── platformio.ini
+│       ├── How_to_create_DB_Postgress.md # Инструкция по настройке БД
+│       └── Grafana/
+│           ├── README.md
+│           └── Grafana__dashboard_pro_v1.json
+├── kicad/                       # KiCad PCB design files
 │   ├── README.md
-│   ├── requirements.txt
-│   └── scripts/
-├── upload_mesh/                 # Инструменты для загрузки mesh
-│   ├── README.md
-│   ├── requirements.txt
-│   ├── upload_mesh.py
-│   └── mesh_bin/
-└── .code-workspace              # Настройки рабочего пространства VS Code
+│   ├── .gitignore
+│   ├── Info/                    # Documentation and datasheets
+│   │   ├── E22_900M22s_info/
+│   │   │   ├── E22-900M22s_info.c
+│   │   │   ├── E22-900M22S_UserManual_EN_v1.3.pdf
+│   │   │   └── E22-900M22s_pics/
+│   │   ├── Esp32c3_supermini_info/
+│   │   └── Signal_analyze/
+│   └── Kicad_LoRa_v3_esp32c3_module_bq25606/  # Main PCB project
+│       ├── ESP32C3-E22-Mesh-Node_v3.kicad_pcb
+│       ├── ESP32C3-E22-Mesh-Node_v3.kicad_sch
+│       ├── ESP32C3-E22-Mesh-Node_v3.kicad_pro
+│       ├── ESP32C3-E22-Mesh-Node_v3.kicad_prl
+│       ├── fp-info-cache
+│       ├── fp-lib-table
+│       ├── sym-lib-table
+│       ├── footprints/
+│       │   ├── Lora_Library.pretty/
+│       │   └── VIP_metr_Library.pretty/
+│       ├── symbols/
+│       │   ├── Lora_lib.kicad_sym
+│       │   └── VIP_metr_lib.kicad_sym
+│       ├── pics/
+│       └── ESP32C3-E22-Mesh-Node_v3-backups/
+└── pics/                        # Изображения и скриншоты проекта
 ```
 
 ## Конфигурация GPIO
