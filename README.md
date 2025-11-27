@@ -163,16 +163,8 @@ GPIO пины определены в `lib/lora_config.hpp`:
 ### Конфигурационный файл config.json
 ```json
 {
-  "venv_activate": "venv/bin/activate",
-  "wifi_enabled": true,
-  "post_mode": "time",
-  "status_enabled": false,
-  "status_interval": "30",
-  "log_short": true,
-  "gain": "20",
-  "freq": "869.075",
-  "spreading_factor": "11",
-  "bandwidth": "250"
+  "_guide": "Этот файл содержит конфигурацию для Python скриптов сборки/загрузки. Используется только venv_activate для автоматической активации виртуального окружения.",
+  "venv_activate": "venv/bin/activate"
 }
 
 ## Сборка и загрузка
