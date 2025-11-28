@@ -487,22 +487,36 @@ void WiFiManager::doHttpPost() {
     ESP_LOGI(TAG, "POST data sent, client connected: %d", client.connected());
 
     // Wait for response
-    delay(2000);  // Increase delay to 2 seconds
+    ESP_LOGI(TAG, "Waiting for server response...");
+    delay(1000);  // Wait 1 second for response to start
     String response = "";
     unsigned long start = millis();
-    while (client.connected() && (millis() - start < 5000)) {
+    bool responseStarted = false;
+    while (client.connected() && (millis() - start < 8000)) {  // Increased timeout to 8 seconds
       if (client.available()) {
+        if (!responseStarted) {
+          ESP_LOGI(TAG, "Server response started");
+          responseStarted = true;
+        }
         int len = client.available();
         for (int i = 0; i < len; i++) {
           char c = client.read();
           response += c;
-          if (response.endsWith("\r\n\r\n")) break; // End of HTTP headers
+          if (response.endsWith("\r\n\r\n")) {
+            ESP_LOGI(TAG, "HTTP headers received, response length: %d", response.length());
+            break; // End of HTTP headers
+          }
         }
         start = millis(); // Reset timeout if data received
       }
       delay(10); // Yield
     }
-    ESP_LOGI(TAG, "Response received, length: %d", response.length());
+
+    if (!responseStarted) {
+      ESP_LOGW(TAG, "No response received from server within timeout");
+    }
+
+    ESP_LOGI(TAG, "Response received, total length: %d", response.length());
 
     if (response.length() == 0) {
       ESP_LOGE(TAG, "No response data, possible server timeout or rejection");
