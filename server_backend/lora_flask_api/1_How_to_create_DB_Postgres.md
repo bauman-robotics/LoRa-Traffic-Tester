@@ -1,5 +1,25 @@
 # Настройка базы данных PostgreSQL для LoRa API
 
+## Краткий план настройки
+
+Для успешной настройки базы данных PostgreSQL выполните следующие шаги:
+
+1. **Подключиться к PostgreSQL** как пользователь postgres
+2. **Создать базу данных** и пользователя с правами доступа
+3. **Создать таблицу** для хранения данных LoRa пакетов
+4. **Настроить права доступа** для пользователя
+5. **Проверить настройку** базы данных и таблицы
+6. **Настроить аутентификацию** (pg_hba.conf) для парольного доступа
+7. **Настроить временную зону** (опционально)
+
+> **ВНИМАНИЕ:** В этом руководстве используются placeholder значения, которые необходимо заменить на свои:
+> - `lora_db` → ваше название базы данных
+> - `xxx_user` → ваше имя пользователя базы данных
+> - `xxx_password` → ваш пароль пользователя
+> - `lora_tab` → ваше название таблицы (если отличается)
+>
+> Рекомендуется использовать более безопасные имена и пароли.
+
 ## Установка и базовые команды PostgreSQL
 
 ### 1. Переключиться на пользователя postgres
@@ -28,7 +48,7 @@ exit                  -- выход из пользователя postgres
 
 ### 4. Выполняем команды последовательно:
 ```sql
-CREATE DATABASE LoRa_db
+CREATE DATABASE lora_db
     ENCODING 'UTF8'
     LC_COLLATE 'en_US.UTF-8'
     LC_CTYPE 'en_US.UTF-8'
@@ -36,13 +56,13 @@ CREATE DATABASE LoRa_db
 
 CREATE USER xxx_user WITH PASSWORD 'xxx_password';
 
-GRANT CONNECT, TEMPORARY ON DATABASE LoRa_db TO xxx_user;
-GRANT CREATE ON DATABASE LoRa_db TO xxx_user;
+GRANT CONNECT, TEMPORARY ON DATABASE lora_db TO xxx_user;
+GRANT CREATE ON DATABASE lora_db TO xxx_user;
 ```
 
 ### 5. Подключиться к базе
 ```sql
-\c LoRa_db
+\c lora_db
 ```
 
 ## Создание таблицы
@@ -82,12 +102,12 @@ sudo -u postgres psql -d lora_db -c "CREATE TABLE lora_tab (line_num SERIAL PRIM
 ### 7. Привилегии
 ```sql
 GRANT ALL PRIVILEGES ON TABLE lora_tab TO xxx_user;
-GRANT ALL PRIVILEGES ON SEQUENCE LoRa_tab_line_num_seq TO xxx_user;
+GRANT ALL PRIVILEGES ON SEQUENCE lora_tab_line_num_seq TO xxx_user;
 ```
 
 **Альтернативный способ настройки привилегий:**
 ```bash
-sudo -u postgres psql -d lora_db -c "GRANT ALL PRIVILEGES ON TABLE lora_tab TO xxx_user; GRANT ALL PRIVILEGES ON SEQUENCE LoRa_tab_line_num_seq TO xxx_user;"
+sudo -u postgres psql -d lora_db -c "GRANT ALL PRIVILEGES ON TABLE lora_tab TO xxx_user; GRANT ALL PRIVILEGES ON SEQUENCE lora_tab_line_num_seq TO xxx_user;"
 ```
 
 ## Структура таблицы
@@ -123,41 +143,77 @@ Indexes:
 
 ## Верификация настройки
 
-### 8. Проверяем
+### 8. Проверяем настройку
 ```sql
+-- Показать структуру таблицы
 \d lora_tab
-\dt+
-\c lora_db
-\d lora_tab
+
+-- Показать все таблицы в базе данных
+\dt
 ```
+
 В выводе должны появиться:
+- Структура таблицы `lora_tab` со всеми колонками
+- Таблица `lora_tab` в списке таблиц базы данных
+
+## Настройка аутентификации PostgreSQL
+
+### 9. Настройка pg_hba.conf для парольной аутентификации
+
+Сначала найдем правильный путь к файлу конфигурации (версия PostgreSQL может отличаться):
+
+```bash
+# Найти файл pg_hba.conf
+find /etc/postgresql -name "pg_hba.conf" 2>/dev/null
+
+# Или проверить версию PostgreSQL и путь
+ls -la /etc/postgresql/
 ```
-lora_db
-lora_tab
+
+Обычно файл находится в `/etc/postgresql/[версия]/main/pg_hba.conf`, где [версия] - номер версии PostgreSQL (например, 12, 13, 14, 15, 16).
+
+```bash
+# Открыть файл конфигурации аутентификации (замените [версия] на вашу версию PostgreSQL)
+sudo nano /etc/postgresql/[версия]/main/pg_hba.conf
 ```
+
+Найти строку:
+```
+# "local" is for Unix domain socket connections only
+local   all             all                                     peer
+```
+
+Изменить `peer` на `md5`:
+```
+# "local" is for Unix domain socket connections only
+local   all             all                                     md5
+```
+
+### 10. Перезапустить PostgreSQL
+```bash
+sudo systemctl restart postgresql
+```
+
+Теперь PostgreSQL будет требовать пароль для локальных подключений вместо peer аутентификации.
 
 ## Настройка временной зоны
 
-=======================================
-
-### Установка московской временной зоны
-```bash
+### Настройка временной зоны в PostgreSQL
+```sql
+-- Установить московскую временную зону для сессии
 SET timezone = 'Europe/Moscow';
 ```
 
-### Глобальная настройка временной зоны
+### Глобальная настройка временной зоны системы
 ```bash
-# Установим московскую временную зону
+# Установить московскую временную зону на уровне ОС
 sudo timedatectl set-timezone Europe/Moscow
 
-# Проверим
+# Проверить настройку
 timedatectl
 
-# Перезапустим PostgreSQL чтобы применил новую зону
+# Перезапустить PostgreSQL для применения новой зоны
 sudo systemctl restart postgresql
 
-# Перезапустим Flask API
+# Перезапустить Flask API (если используется systemd)
 sudo systemctl restart lora-api.service
-```
-
-===========================================
