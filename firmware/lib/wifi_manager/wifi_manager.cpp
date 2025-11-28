@@ -1,6 +1,9 @@
 #include "wifi_manager.hpp"
 #include <string>
 #include "LittleFS.h"
+#if USE_HTTPS
+#include <WiFiClientSecure.h>
+#endif
 
 // LoRa packet payload length storage
 int lastLoRaPacketLen = 0;
@@ -39,7 +42,11 @@ void WiFiManager::loadSettings() {
   userLocation = DEFAULT_USER_LOCATION;
   serverProtocol = DEFAULT_SERVER_PROTOCOL;
   serverIP = DEFAULT_SERVER_IP;
+#ifdef USE_HTTPS
+  serverPort = "443";  // Default HTTPS port for PHP server
+#else
   serverPort = "80";  // Default HTTP port for PHP server
+#endif
   serverPath = DEFAULT_SERVER_PATH;
 #endif
   ESP_LOGI(TAG, "Settings loaded from defaults");
@@ -70,6 +77,9 @@ void WiFiManager::loadSettings() {
   ESP_LOGI(TAG, "  MESH_CODING_RATE=%d", MESH_CODING_RATE);
   ESP_LOGI(TAG, "  OLD_LORA_PARS=%d", OLD_LORA_PARS);
   ESP_LOGI(TAG, "  COLD_AS_LORA_PAYLOAD_LEN=%d", COLD_AS_LORA_PAYLOAD_LEN);
+  ESP_LOGI(TAG, "HTTPS settings:");
+  ESP_LOGI(TAG, "  USE_HTTPS=%d", USE_HTTPS);
+  ESP_LOGI(TAG, "  USE_INSECURE_HTTPS=%d", USE_INSECURE_HTTPS);
 }
 
 void WiFiManager::saveWiFiCredentials() {
@@ -267,6 +277,7 @@ bool WiFiManager::connect() {
   }
   if (WiFi.status() == WL_CONNECTED) {
     ESP_LOGI(TAG, "WiFi connected: IP %s", WiFi.localIP().toString().c_str());
+    ESP_LOGI(TAG, "Server protocol: %s, Port: %s", serverProtocol.c_str(), serverPort.c_str());
     WiFi.setTxPower((wifi_power_t)WIFI_TX_POWER);
     ESP_LOGI(TAG, "WiFi max TX power set to: %d (%0.1f dBm)", WIFI_TX_POWER, (float)(WIFI_TX_POWER - 8) / 2.0f);
     return true;
@@ -360,7 +371,14 @@ void WiFiManager::doHttpPost() {
   extern unsigned long cold_counter;
   extern unsigned long hot_counter;
 
+#if USE_HTTPS
+  WiFiClientSecure client;
+  #if USE_INSECURE_HTTPS
+  client.setInsecure(); // Skip certificate verification (equivalent to curl -k)
+  #endif
+#else
   WiFiClient client;
+#endif
   int port = serverPort.toInt();  // Use configurable port
   String path = "/" + serverPath;
   int alarm_value = ALARM_TIME + random(0, 10000);
@@ -411,8 +429,13 @@ void WiFiManager::doHttpPost() {
 
   ESP_LOGD(TAG, "Preparing POST: cold=%ld, hot=%ld, path=%s, server=%s",
            cold_value, hot_value, path.c_str(), serverIP.c_str());
+#if USE_HTTPS && USE_INSECURE_HTTPS
+  ESP_LOGI(TAG, "CURL example: curl -k -X POST -H 'Content-Type: application/x-www-form-urlencoded' -d '%s' %s://%s:%d/%s",
+           postData.c_str(), serverProtocol.c_str(), serverIP.c_str(), port, serverPath.c_str());
+#else
   ESP_LOGI(TAG, "CURL example: curl -X POST -H 'Content-Type: application/x-www-form-urlencoded' -d '%s' %s://%s:%d/%s",
            postData.c_str(), serverProtocol.c_str(), serverIP.c_str(), port, serverPath.c_str());
+#endif
   ESP_LOGI(TAG, "Full postData: %s", postData.c_str());
 
   lastHttpResult = "Sending POST with cold=" + String(cold_value) + ", hot=" + String(hot_value) + "...";
@@ -424,6 +447,17 @@ void WiFiManager::doHttpPost() {
   }
 
   ESP_LOGI(TAG, "Connecting to server %s on port %d", serverIP.c_str(), port);
+
+  // Log the full HTTP request being sent
+  String fullRequest = "POST " + path + " HTTP/1.1\r\n";
+  fullRequest += "Host: " + serverIP + "\r\n";
+  fullRequest += "User-Agent: curl/7.81.0\r\n";
+  fullRequest += "Content-Type: " + contentType + "\r\n";
+  fullRequest += "Content-Length: " + String(postData.length()) + "\r\n";
+  fullRequest += "Connection: close\r\n";
+  fullRequest += "\r\n";
+  fullRequest += postData;
+  ESP_LOGI(TAG, "Full HTTP request being sent:\n%s", fullRequest.c_str());
 
   if (client.connect(serverIP.c_str(), port)) {
     client.setTimeout(5000); // Set timeout 5 seconds
@@ -507,7 +541,14 @@ void WiFiManager::stopPingTask() {
 }
 
 void WiFiManager::pingServer() {
+#if USE_HTTPS
+  WiFiClientSecure client;
+  #if USE_INSECURE_HTTPS
+  client.setInsecure(); // Skip certificate verification (equivalent to curl -k)
+  #endif
+#else
   WiFiClient client;
+#endif
   int port = serverPort.toInt();
   ESP_LOGI(TAG, "Pinging server %s on port %d", serverIP.c_str(), port);
   if (client.connect(serverIP.c_str(), port)) {

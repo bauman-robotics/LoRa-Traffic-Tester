@@ -42,13 +42,17 @@ extern unsigned long status_Interval;
 // Edit lib/network_definitions.h to change settings at compile time
 // If no main file, edit lib/fake_network_definitions.h instead
 
-#define USE_SYSTEM_NETWORK
+//#define USE_SYSTEM_NETWORK
 
 #ifdef USE_SYSTEM_NETWORK
 #include "../../../network_definitions.h"
 #else
 #include "fake_network_definitions.h"  // Fallback defaults
 #endif
+
+#define USE_HTTPS 0  // If 1, use HTTPS for server communication; if 0, use HTTP
+#define USE_INSECURE_HTTPS 1  // Если 1, пропустить проверку SSL сертификатов (эквивалент curl -k); если 0, проверять сертификаты
+
 
 #define POST_INTERVAL_EN 0  // Enable periodic POST requests (can be controlled via GUI)
 #define POST_EN_WHEN_LORA_RECEIVED 1  // Send POST only when LoRa packet received
@@ -57,8 +61,8 @@ extern unsigned long status_Interval;
 #define OLD_LORA_PARS 0  // If 1, use old packet parsing (alarm_time=00), if 0, use new Meshtastic header parsing  === 1 ========================================
 #define PARSE_SENDER_ID_FROM_LORA_PACKETS 1  // If 1, parse sender_id from LoRa packet header when packet length > 7 bytes, use 1 otherwise === 2 ========================================
 #define USE_FLASK_SERVER 1  // If 1, use Flask server (84.252.143.212:5001); if 0, use PHP server (default)
-#define SERVER_PING_ENABLED 0  // Enable periodic ping of the server
 
+#define SERVER_PING_ENABLED 0  // Enable periodic ping of the server
 #define POST_INTERVAL_MS 10000  // Interval between POST requests in ms (if enabled)
 #define PING_INTERVAL_MS 5000  // Interval between ping in ms
 #define HOT_WATER 0  // Default value for hot water field
