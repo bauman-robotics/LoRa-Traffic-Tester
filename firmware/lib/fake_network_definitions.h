@@ -1,13 +1,10 @@
 #pragma once
 
-#include <Arduino.h>
+//#include <Arduino.h>
+#include "lora_config.hpp"
 
 // Compile-time network settings
 // Edit these values directly in this file
-//
-
-// HTTPS security settings
-#define USE_INSECURE_HTTPS 1  // Если 1, пропустить проверку SSL сертификатов (эквивалент curl -k); если 0, проверять сертификаты
 
 const char* const DEFAULT_WIFI_SSID = "fake_ssid";
 const char* const DEFAULT_WIFI_PASSWORD = "fake_pass";

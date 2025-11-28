@@ -53,6 +53,7 @@ class WiFiManager {
   void pingServer();
 
   String uint32ToHexString(uint32_t value);  // Convert uint32_t to 8-character hex string
+  String getNipIoUrl(String ip, int port, String path);  // Convert IP to nip.io format
 
   String ssid, password;
   String apiKey, userId, userLocation;

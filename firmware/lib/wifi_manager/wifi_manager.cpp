@@ -214,8 +214,14 @@ bool WiFiManager::connect() {
   ESP_LOGI(TAG, "Connecting to WiFi SSID: %s", ssid.c_str());
   ESP_LOGI(TAG, "WiFi password: ****");
   ESP_LOGI(TAG, "API key: %s", apiKey.c_str());
-  ESP_LOGI(TAG, "Server: %s%s", serverIP.c_str(), serverPath.c_str());
-  ESP_LOGI(TAG, "Full server URL: %s://%s/%s", serverProtocol.c_str(), serverIP.c_str(), serverPath.c_str());
+  String fullPath = serverPath.startsWith("/") ? serverPath : "/" + serverPath;
+  ESP_LOGI(TAG, "Server: %s%s", serverIP.c_str(), fullPath.c_str());
+#if USE_HTTPS
+  String nipIoUrl = getNipIoUrl(serverIP, serverPort.toInt(), fullPath);
+  ESP_LOGI(TAG, "Full server URL: %s", nipIoUrl.c_str());
+#else
+  ESP_LOGI(TAG, "Full server URL: %s://%s%s", serverProtocol.c_str(), serverIP.c_str(), fullPath.c_str());
+#endif
   uint8_t mac[6];
   WiFi.macAddress(mac);
   char macStr[18];
@@ -380,7 +386,7 @@ void WiFiManager::doHttpPost() {
   WiFiClient client;
 #endif
   int port = serverPort.toInt();  // Use configurable port
-  String path = "/" + serverPath;
+  String path = serverPath.startsWith("/") ? serverPath : "/" + serverPath;
   int alarm_value = ALARM_TIME + random(0, 10000);
   if (POST_SEND_SENDER_ID_AS_ALARM_TIME) {
     //alarm_value = last_sender_id & 0xFFFF;  // Use only lower 16 bits of sender ID, 0 if invalid header
@@ -429,9 +435,15 @@ void WiFiManager::doHttpPost() {
 
   ESP_LOGD(TAG, "Preparing POST: cold=%ld, hot=%ld, path=%s, server=%s",
            cold_value, hot_value, path.c_str(), serverIP.c_str());
-#if USE_HTTPS && USE_INSECURE_HTTPS
-  ESP_LOGI(TAG, "CURL example: curl -k -X POST -H 'Content-Type: application/x-www-form-urlencoded' -d '%s' %s://%s:%d/%s",
-           postData.c_str(), serverProtocol.c_str(), serverIP.c_str(), port, serverPath.c_str());
+#if USE_HTTPS
+  String nipIoUrl = getNipIoUrl(serverIP, port, serverPath);
+  #if USE_INSECURE_HTTPS
+  ESP_LOGI(TAG, "CURL example: curl -k -X POST -H 'Content-Type: application/x-www-form-urlencoded' -d '%s' %s",
+           postData.c_str(), nipIoUrl.c_str());
+  #else
+  ESP_LOGI(TAG, "CURL example: curl -X POST -H 'Content-Type: application/x-www-form-urlencoded' -d '%s' %s",
+           postData.c_str(), nipIoUrl.c_str());
+  #endif
 #else
   ESP_LOGI(TAG, "CURL example: curl -X POST -H 'Content-Type: application/x-www-form-urlencoded' -d '%s' %s://%s:%d/%s",
            postData.c_str(), serverProtocol.c_str(), serverIP.c_str(), port, serverPath.c_str());
@@ -602,6 +614,13 @@ String WiFiManager::uint32ToHexString(uint32_t value) {
   char hexStr[9];  // 8 chars + null terminator
   sprintf(hexStr, "%08X", value);
   return String(hexStr);
+}
+
+// Convert IP address to nip.io format for HTTPS public access
+String WiFiManager::getNipIoUrl(String ip, int port, String path) {
+  String nipIp = ip;
+  nipIp.replace(".", "-");
+  return "https://" + nipIp + ".nip.io:" + String(port) + path;
 }
 
 #if WIFI_DEBUG_FIXES

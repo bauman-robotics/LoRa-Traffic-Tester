@@ -42,7 +42,7 @@ extern unsigned long status_Interval;
 // Edit lib/network_definitions.h to change settings at compile time
 // If no main file, edit lib/fake_network_definitions.h instead
 
-//#define USE_SYSTEM_NETWORK
+#define USE_SYSTEM_NETWORK
 
 #ifdef USE_SYSTEM_NETWORK
 #include "../../../network_definitions.h"
@@ -50,7 +50,7 @@ extern unsigned long status_Interval;
 #include "fake_network_definitions.h"  // Fallback defaults
 #endif
 
-#define USE_HTTPS 0  // If 1, use HTTPS for server communication; if 0, use HTTP
+#define USE_HTTPS 1  // If 1, use HTTPS for server communication; if 0, use HTTP
 #define USE_INSECURE_HTTPS 1  // Если 1, пропустить проверку SSL сертификатов (эквивалент curl -k); если 0, проверять сертификаты
 
 
