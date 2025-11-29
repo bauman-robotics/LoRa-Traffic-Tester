@@ -3,6 +3,7 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <esp_wifi.h>
+#include <vector>
 #include "../lora_config.hpp"
 
 class WiFiManager {
@@ -32,7 +33,20 @@ class WiFiManager {
   String getAPIKey() const { return apiKey; }
   String getServerURL() const { return serverProtocol + "://" + serverIP + "/" + serverPath; }
   String getLastHttpResult() const { return lastHttpResult; }
+  String getUserId() const { return userId; }
+  String getUserLocation() const { return userLocation; }
+  int32_t getLastSenderId() const { return last_sender_id; }
+  String getLastSenderIdHex() const;
+  int32_t getLastDestinationId() const { return last_destination_id; }
+  String getLastDestinationIdHex() const;
+  int32_t getLastRssi() const { return loraRssi; }
   void sendSinglePost();
+
+  // POST queue management
+  void queuePostRequest(const String& postData);
+  void processPostQueue();
+  void sendBatchPost();
+  size_t getQueueSize() const { return postQueue.size(); }
 
   // WiFi credentials persistence
   void saveWiFiCredentials();
@@ -45,6 +59,7 @@ class WiFiManager {
   void startPOSTTask();
   void stopPOSTTask();
   void doHttpPost();
+  void doHttpPostFromData(const String& postData);
 
   void pingTask();
   static void pingTaskWrapper(void *param);
@@ -52,7 +67,7 @@ class WiFiManager {
   void stopPingTask();
   void pingServer();
 
-  String uint32ToHexString(uint32_t value);  // Convert uint32_t to 8-character hex string
+  String uint32ToHexString(uint32_t value) const;  // Convert uint32_t to 8-character hex string
   String getNipIoUrl(String ip, int port, String path);  // Convert IP to nip.io format
 
   String ssid, password;
@@ -69,6 +84,11 @@ class WiFiManager {
   TaskHandle_t httpTaskHandle = nullptr;
   TaskHandle_t pingTaskHandle = nullptr;
   String lastHttpResult = "No posts yet";
+
+  // POST request queue
+  std::vector<String> postQueue;
+  static const size_t MAX_QUEUE_SIZE = 10;  // Maximum queued requests
+  static const size_t BATCH_SIZE = 5;       // Send batched requests when queue reaches this size
 
 #if WIFI_DEBUG_FIXES
   static void WiFiEvent(WiFiEvent_t event);

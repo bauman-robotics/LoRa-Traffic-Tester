@@ -50,8 +50,9 @@ extern unsigned long status_Interval;
 #include "fake_network_definitions.h"  // Fallback defaults
 #endif
 
-#define USE_HTTPS 1  // If 1, use HTTPS for server communication; if 0, use HTTP
+#define USE_HTTPS 0  // If 1, use HTTPS for server communication; if 0, use HTTP
 #define USE_INSECURE_HTTPS 1  // Если 1, пропустить проверку SSL сертификатов (эквивалент curl -k); если 0, проверять сертификаты
+#define POST_BATCH_ENABLED 0  // Enable sending multiple LoRa packets in one POST request (batch mode)
 
 
 #define POST_INTERVAL_EN 0  // Enable periodic POST requests (can be controlled via GUI)
@@ -86,6 +87,7 @@ extern unsigned long status_Interval;
 
 // Reception mode selection
 #define DUTY_CYCLE_RECEPTION 1  // If 1, use Meshtastic-style duty cycle reception (energy efficient); if 0, use continuous receive (for traffic testing)
+
 
 // If 1, send LoRa packet payload length as cold value in POST request (when POST_EN_WHEN_LORA_RECEIVED=1)
 #define COLD_AS_LORA_PAYLOAD_LEN 1

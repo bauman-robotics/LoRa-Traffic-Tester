@@ -282,6 +282,57 @@ void Control::loRaDataTask() {
         }
       }
 
+      // Queue POST request instead of immediate trigger
+      if (post_on_lora) {
+        // Build POST data similar to doHttpPost but queue instead of send
+        extern unsigned long cold_counter;
+        extern unsigned long hot_counter;
+
+        int alarm_value = ALARM_TIME + random(0, 10000);
+        if (POST_SEND_SENDER_ID_AS_ALARM_TIME) {
+          alarm_value = m_wifiManager->getLastSenderId() & 0xFFFF;
+        }
+        long hot_value;
+        if (post_on_lora) {
+          hot_value = POST_HOT_AS_RSSI ? m_wifiManager->getLastRssi() : hot_counter;
+        } else {
+          hot_value = hot_counter;
+        }
+        long cold_value;
+        if (post_on_lora && (COLD_AS_LORA_PAYLOAD_LEN || !OLD_LORA_PARS)) {
+          cold_value = m_wifiManager->getLastLoRaPacketLen();
+        } else {
+          cold_value = cold_counter++;
+        }
+
+        String postData;
+        if (USE_FLASK_SERVER) {
+          postData = "{";
+          postData += "\"user_id\":\"" + m_wifiManager->getUserId() + "\",";
+          postData += "\"user_location\":\"" + m_wifiManager->getUserLocation() + "\",";
+          postData += "\"sender_nodeid\":\"" + m_wifiManager->getLastSenderIdHex() + "\",";
+          postData += "\"destination_nodeid\":\"" + m_wifiManager->getLastDestinationIdHex() + "\",";
+          postData += "\"full_packet_len\":" + String(cold_value) + ",";
+          postData += "\"signal_level_dbm\":" + String(m_wifiManager->getLastRssi()) + ",";
+          postData += "\"additional_field3\":" + String(m_wifiManager->getQueueSize());
+          postData += "}";
+        } else {
+          postData = "api_key=" + m_wifiManager->getAPIKey() +
+                    "&user_id=" + m_wifiManager->getUserId() +
+                    "&user_location=" + m_wifiManager->getUserLocation() +
+                    "&cold=" + String(cold_value) +
+                    "&hot=" + String(hot_value) +
+                    "&alarm_time=" + String(alarm_value);
+        }
+
+        ESP_LOGI(TAG, "Queueing POST request for LoRa packet");
+        m_wifiManager->queuePostRequest(postData);
+
+        if (post_on_lora && !POST_HOT_AS_RSSI) {
+          hot_counter++;  // Increment only for counter mode
+        }
+      }
+
       memset(buffer, 0, sizeof(buffer));
     }
 

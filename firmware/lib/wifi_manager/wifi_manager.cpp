@@ -67,7 +67,7 @@ void WiFiManager::loadSettings() {
   ESP_LOGI(TAG, "  LORA_STATUS_SHORT_PACKETS=%d", LORA_STATUS_SHORT_PACKETS);
   ESP_LOGI(TAG, "  POST_INTERVAL_EN=%d", POST_INTERVAL_EN);
   ESP_LOGI(TAG, "  POST_EN_WHEN_LORA_RECEIVED=%d", POST_EN_WHEN_LORA_RECEIVED);
-  ESP_LOGI(TAG, "  POST_HOT_AS_RSSI=%d", POST_HOT_AS_RSSI);
+  ESP_LOGI(TAG, "  POST_HOT_AS_RSSI=%d, POST_BATCH_ENABLED=%d", POST_HOT_AS_RSSI, POST_BATCH_ENABLED);
   ESP_LOGI(TAG, "MESH settings:");
   ESP_LOGI(TAG, "  MESH_COMPATIBLE=%d", MESH_COMPATIBLE);
   ESP_LOGI(TAG, "  MESH_SYNC_WORD=0x%02X", MESH_SYNC_WORD);
@@ -373,10 +373,7 @@ void WiFiManager::stopPOSTTask() {
   }
 }
 
-void WiFiManager::doHttpPost() {
-  extern unsigned long cold_counter;
-  extern unsigned long hot_counter;
-
+void WiFiManager::doHttpPostFromData(const String& postData) {
 #if USE_HTTPS
   WiFiClientSecure client;
   #if USE_INSECURE_HTTPS
@@ -385,6 +382,123 @@ void WiFiManager::doHttpPost() {
 #else
   WiFiClient client;
 #endif
+  int port = serverPort.toInt();  // Use configurable port
+  String path = serverPath.startsWith("/") ? serverPath : "/" + serverPath;
+  String contentType = USE_FLASK_SERVER ? "application/json" : "application/x-www-form-urlencoded";
+
+  ESP_LOGI(TAG, "Sending queued POST request");
+  ESP_LOGI(TAG, "Full postData: %s", postData.c_str());
+
+  // Log curl command for testing
+  if (USE_FLASK_SERVER) {
+    ESP_LOGI(TAG, "CURL test command: curl -k -X POST -H 'Content-Type: application/json' -d '%s' https://%s:%d%s",
+             postData.c_str(), serverIP.c_str(), port, serverPath.c_str());
+  } else {
+    ESP_LOGI(TAG, "CURL test command: curl -k -X POST -H 'Content-Type: application/x-www-form-urlencoded' -d '%s' https://%s:%d%s",
+             postData.c_str(), serverIP.c_str(), port, serverPath.c_str());
+  }
+
+  lastHttpResult = "Sending queued POST request...";
+
+  if (WiFi.status() != WL_CONNECTED) {
+    ESP_LOGE(TAG, "WiFi not connected, cannot send POST");
+    lastHttpResult = "WiFi not connected";
+    return;
+  }
+
+  ESP_LOGI(TAG, "Connecting to server %s on port %d", serverIP.c_str(), port);
+
+  // Log the full HTTP request being sent
+  String fullRequest = "POST " + path + " HTTP/1.1\r\n";
+  fullRequest += "Host: " + serverIP + "\r\n";
+  fullRequest += "User-Agent: curl/7.81.0\r\n";
+  fullRequest += "Content-Type: " + contentType + "\r\n";
+  fullRequest += "Content-Length: " + String(postData.length()) + "\r\n";
+  fullRequest += "Connection: close\r\n";
+  fullRequest += "\r\n";
+  fullRequest += postData;
+  ESP_LOGI(TAG, "Full HTTP request being sent:\n%s", fullRequest.c_str());
+
+  if (client.connect(serverIP.c_str(), port)) {
+    client.setTimeout(5000); // Set timeout 5 seconds
+    ESP_LOGI(TAG, "Connected to server for POST");
+    ESP_LOGI(TAG, "Sending POST headers");
+    client.println("POST " + path + " HTTP/1.1");
+    client.println("Host: " + serverIP);
+    client.println("User-Agent: curl/7.81.0");
+    client.println("Content-Type: " + contentType);
+    client.println("Content-Length: " + String(postData.length()));
+    client.println("Connection: close");
+    client.println();
+    ESP_LOGI(TAG, "Sending POST data");
+    client.println(postData);
+    ESP_LOGI(TAG, "POST data sent, client connected: %d", client.connected());
+
+    // Wait for response
+    ESP_LOGI(TAG, "Waiting for server response...");
+    delay(1000);  // Wait 1 second for response to start
+    String response = "";
+    unsigned long start = millis();
+    bool responseStarted = false;
+    while (client.connected() && (millis() - start < 8000)) {  // Increased timeout to 8 seconds
+      if (client.available()) {
+        if (!responseStarted) {
+          ESP_LOGI(TAG, "Server response started");
+          responseStarted = true;
+        }
+        int len = client.available();
+        for (int i = 0; i < len; i++) {
+          char c = client.read();
+          response += c;
+          if (response.endsWith("\r\n\r\n")) {
+            ESP_LOGI(TAG, "HTTP headers received, response length: %d", response.length());
+            break; // End of HTTP headers
+          }
+        }
+        start = millis(); // Reset timeout if data received
+      }
+      delay(10); // Yield
+    }
+
+    if (!responseStarted) {
+      ESP_LOGW(TAG, "No response received from server within timeout");
+    }
+
+    ESP_LOGI(TAG, "Response received, total length: %d", response.length());
+
+    if (response.length() == 0) {
+      ESP_LOGE(TAG, "No response data, possible server timeout or rejection");
+    }
+    if (response.length() > 0) {
+      ESP_LOGI(TAG, "Response content: %s", response.substring(0, 100).c_str());
+    }
+    client.stop();
+
+    if (response.indexOf("200") >= 0) {
+      lastHttpResult = "Success: HTTP 200 (Queued POST sent)";
+      ESP_LOGI(TAG, "Queued POST success");
+    } else {
+      lastHttpResult = "Failed: Server error";
+      ESP_LOGE(TAG, "Queued POST failed: response len=%d", response.length());
+    }
+  } else {
+    lastHttpResult = "Failed: Cannot connect to server " + serverIP;
+    ESP_LOGE(TAG, "Cannot connect to server %s", serverIP.c_str());
+  }
+}
+
+void WiFiManager::doHttpPost() {
+#if USE_HTTPS
+  WiFiClientSecure client;
+  #if USE_INSECURE_HTTPS
+  client.setInsecure(); // Skip certificate verification (equivalent to curl -k)
+  #endif
+#else
+  WiFiClient client;
+#endif
+  extern unsigned long cold_counter;
+  extern unsigned long hot_counter;
+
   int port = serverPort.toInt();  // Use configurable port
   String path = serverPath.startsWith("/") ? serverPath : "/" + serverPath;
   int alarm_value = ALARM_TIME + random(0, 10000);
@@ -597,37 +711,115 @@ void WiFiManager::pingTask() {
 }
 
 void WiFiManager::httpPostTask() {
-  if (post_on_lora_mm) {
-    while (true) {
-      bool cond1 = enabled;
-      bool cond2 = isConnected();
-      if (cond1 && cond2 && sendPostOnLoRa) {
-        sendPostOnLoRa = false;
-        ESP_LOGI(TAG, "POST Task: LoRa received, sending POST");
-        doHttpPost();
-      }
-      vTaskDelay(pdMS_TO_TICKS(100));
-    }
-  } else {
-    while (true) {
+  while (true) {
+    // First, process any queued POST requests
+    processPostQueue();
+
+    // Then handle periodic POSTs if enabled and not in LoRa trigger mode
+    if (!post_on_lora_mm) {
       bool cond1 = enabled;
       bool cond2 = isConnected();
       bool cond3 = postEnabled;
       if (cond1 && cond2 && cond3) {
-        ESP_LOGI(TAG, "POST Task: conditions met, sending POST");
+        ESP_LOGI(TAG, "POST Task: conditions met, sending periodic POST");
         doHttpPost();
       } else {
-        ESP_LOGD(TAG, "POST Task: waiting... enabled=%d, connected=%d, postEnabled=%d", cond1, cond2, cond3);
+        ESP_LOGD(TAG, "POST Task: waiting... enabled=%d, connected=%d, postEnabled=%d, queue_size=%d",
+                 cond1, cond2, cond3, postQueue.size());
       }
       vTaskDelay(pdMS_TO_TICKS(POST_INTERVAL_MS));
+    } else {
+      // In LoRa trigger mode, just process queue and wait
+      ESP_LOGD(TAG, "POST Task: LoRa trigger mode, queue_size=%d", postQueue.size());
+      vTaskDelay(pdMS_TO_TICKS(500));  // Check queue every 500ms
     }
   }
 }
 
-String WiFiManager::uint32ToHexString(uint32_t value) {
+String WiFiManager::uint32ToHexString(uint32_t value) const {
   char hexStr[9];  // 8 chars + null terminator
   sprintf(hexStr, "%08X", value);
   return String(hexStr);
+}
+
+String WiFiManager::getLastSenderIdHex() const {
+  return uint32ToHexString(last_sender_id);
+}
+
+String WiFiManager::getLastDestinationIdHex() const {
+  return uint32ToHexString(last_destination_id);
+}
+
+// POST queue management
+void WiFiManager::queuePostRequest(const String& postData) {
+  if (postQueue.size() >= MAX_QUEUE_SIZE) {
+    ESP_LOGW(TAG, "POST queue full (%d), dropping oldest request", MAX_QUEUE_SIZE);
+    postQueue.erase(postQueue.begin());  // Remove oldest
+  }
+  postQueue.push_back(postData);
+  ESP_LOGI(TAG, "Queued POST request, queue size: %d", postQueue.size());
+}
+
+void WiFiManager::processPostQueue() {
+  if (postQueue.empty()) {
+    return;
+  }
+
+  if (!isConnected()) {
+    ESP_LOGD(TAG, "Not connected, cannot process queue");
+    return;
+  }
+
+#if POST_BATCH_ENABLED
+  // If batch mode enabled and we have enough items, send as batch
+  if (postQueue.size() >= BATCH_SIZE) {
+    sendBatchPost();
+    return;
+  }
+#endif
+
+  // Send individual requests (when batch disabled or queue is small)
+  String postData = postQueue.front();
+  postQueue.erase(postQueue.begin());
+
+  ESP_LOGI(TAG, "Processing individual queued POST, %d remaining in queue", postQueue.size());
+
+  // Send the queued request
+  doHttpPostFromData(postData);
+}
+
+void WiFiManager::sendBatchPost() {
+  if (postQueue.size() < BATCH_SIZE) {
+    ESP_LOGW(TAG, "Not enough items for batch (%d < %d)", postQueue.size(), BATCH_SIZE);
+    return;
+  }
+
+#if USE_FLASK_SERVER
+  // Create JSON array with first BATCH_SIZE items
+  String batchData = "[";
+
+  for (size_t i = 0; i < BATCH_SIZE; i++) {
+    if (i > 0) batchData += ",";
+    batchData += postQueue[i];
+  }
+  batchData += "]";
+
+  // Remove the batched items from queue
+  postQueue.erase(postQueue.begin(), postQueue.begin() + BATCH_SIZE);
+
+  ESP_LOGI(TAG, "Sending batch POST with %d items, %d remaining in queue", BATCH_SIZE, postQueue.size());
+
+  // Send the batch
+  doHttpPostFromData(batchData);
+#else
+  // For PHP server, fall back to individual requests
+  ESP_LOGW(TAG, "Batch sending not supported for PHP server, sending individually");
+  for (size_t i = 0; i < BATCH_SIZE && !postQueue.empty(); i++) {
+    String postData = postQueue.front();
+    postQueue.erase(postQueue.begin());
+    doHttpPostFromData(postData);
+  }
+#endif
 }
 
 // Convert IP address to nip.io format for HTTPS public access
