@@ -476,10 +476,15 @@ void WiFiManager::doHttpPostFromData(const String& postData) {
 
     if (response.indexOf("200") >= 0) {
       lastHttpResult = "Success: HTTP 200 (Queued POST sent)";
-      ESP_LOGI(TAG, "Queued POST success");
+      postRequestsSent++;  // Increment successful POSTs counter
+      ESP_LOGI(TAG, "Queued POST success - Total sent: %lu, received: %lu",
+               postRequestsSent, loraPacketsReceived);
     } else {
       lastHttpResult = "Failed: Server error";
       ESP_LOGE(TAG, "Queued POST failed: response len=%d", response.length());
+      // Return failed request to the front of queue for retry
+      postQueue.insert(postQueue.begin(), postData);
+      ESP_LOGW(TAG, "Request returned to queue for retry, queue size: %d", postQueue.size());
     }
   } else {
     lastHttpResult = "Failed: Cannot connect to server " + serverIP;

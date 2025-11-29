@@ -42,6 +42,12 @@ class WiFiManager {
   int32_t getLastRssi() const { return loraRssi; }
   void sendSinglePost();
 
+  // Statistics getters and incrementers
+  unsigned long getLoraPacketsReceived() const { return loraPacketsReceived; }
+  void incrementLoraPacketsReceived() { loraPacketsReceived++; }
+  unsigned long getPostRequestsSent() const { return postRequestsSent; }
+  void incrementPostRequestsSent() { postRequestsSent++; }
+
   // POST queue management
   void queuePostRequest(const String& postData);
   void processPostQueue();
@@ -89,6 +95,10 @@ class WiFiManager {
   std::vector<String> postQueue;
   static const size_t MAX_QUEUE_SIZE = 10;  // Maximum queued requests
   static const size_t BATCH_SIZE = 5;       // Send batched requests when queue reaches this size
+
+  // Statistics counters
+  volatile unsigned long loraPacketsReceived = 0;  // Total LoRa packets received
+  volatile unsigned long postRequestsSent = 0;     // Total POST requests successfully sent
 
 #if WIFI_DEBUG_FIXES
   static void WiFiEvent(WiFiEvent_t event);

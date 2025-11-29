@@ -1,3 +1,19 @@
+# Перезагрузите Nginx:
+# sudo nginx -t
+# sudo systemctl reload nginx
+
+# sudo systemctl daemon-reload
+# sudo systemctl start lora-api.service
+# sudo systemctl stop lora-api.service
+# sudo systemctl status lora-api.service
+# sudo systemctl restart lora-api.service
+
+#Если запускаете python lora_api.py, логи будут выводиться прямо в консоль.
+
+# sudo systemctl daemon-reload
+# sudo systemctl restart lora-api.service
+# python3 lora_api.py
+
 from flask import Flask, request, jsonify
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -60,60 +76,123 @@ def get_single_data(line_num):
 
 @app.route('/api/lora', methods=['POST'])
 def add_data():
-    """Добавить новую запись в таблицу lora_tab"""
+    """Добавить новую запись или батч записей в таблицу lora_tab"""
     try:
         data = request.json
-        
+
         if not data:
             return jsonify({'status': 'error', 'message': 'No data provided'}), 400
-        
+
         conn = get_db_connection()
         cur = conn.cursor()
-        
-        query = """
-            INSERT INTO lora_tab 
-            (user_id, user_location, cold, hot, alarm_time, 
-             destination_nodeid, sender_nodeid, packet_id, header_flags,
-             channel_hash, next_hop, relay_node, packet_data,
-             signal_level_dbm, full_packet_len, additional_field3, additional_field4)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            RETURNING line_num, created_at
-        """
-        
-        parameters = (
-            data.get('user_id'),
-            data.get('user_location'),
-            data.get('cold'),
-            data.get('hot'), 
-            data.get('alarm_time'),
-            data.get('destination_nodeid'),  # теперь TEXT для HEX
-            data.get('sender_nodeid'),       # TEXT для HEX
-            data.get('packet_id'),
-            data.get('header_flags'),
-            data.get('channel_hash'),
-            data.get('next_hop'),
-            data.get('relay_node'),
-            data.get('packet_data'),
-            data.get('signal_level_dbm'),
-            data.get('full_packet_len'),
-            data.get('additional_field3'),
-            data.get('additional_field4')
-        )
-        
-        cur.execute(query, parameters)
-        result = cur.fetchone()
-        conn.commit()
-        
-        cur.close()
-        conn.close()
-        
-        return jsonify({
-            'status': 'success',
-            'message': 'Data added successfully',
-            'line_num': result[0],
-            'created_at': result[1].isoformat()
-        })
-        
+
+        # Проверяем, пришел ли батч (массив) или одиночный объект
+        if isinstance(data, list):
+            # Обработка батча записей - помечаем как батч
+            inserted_count = 0
+            for item in data:
+                # Создаем копию item и устанавливаем additional_field4 = 1 для батчевых записей
+                item_copy = item.copy()
+                item_copy['additional_field4'] = 1  # 1 = batch, 0 = single, NULL = unknown
+
+                query = """
+                    INSERT INTO lora_tab
+                    (user_id, user_location, cold, hot, alarm_time,
+                     destination_nodeid, sender_nodeid, packet_id, header_flags,
+                     channel_hash, next_hop, relay_node, packet_data,
+                     signal_level_dbm, full_packet_len, additional_field3, additional_field4)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """
+
+                parameters = (
+                    item_copy.get('user_id'),
+                    item_copy.get('user_location'),
+                    item_copy.get('cold'),
+                    item_copy.get('hot'),
+                    item_copy.get('alarm_time'),
+                    item_copy.get('destination_nodeid'),  # TEXT для HEX
+                    item_copy.get('sender_nodeid'),       # TEXT для HEX
+                    item_copy.get('packet_id'),
+                    item_copy.get('header_flags'),
+                    item_copy.get('channel_hash'),
+                    item_copy.get('next_hop'),
+                    item_copy.get('relay_node'),
+                    item_copy.get('packet_data'),
+                    item_copy.get('signal_level_dbm'),
+                    item_copy.get('full_packet_len'),
+                    item_copy.get('additional_field3'),
+                    item_copy.get('additional_field4')
+                )
+
+                try:
+                    cur.execute(query, parameters)
+                    inserted_count += 1
+                    print(f"DEBUG: Inserted item {inserted_count}")
+                except Exception as e:
+                    print(f"DEBUG: Error inserting item {inserted_count}: {e}")
+                    print(f"DEBUG: Parameters: {parameters}")
+                    raise
+
+            conn.commit()
+            cur.close()
+            conn.close()
+
+            return jsonify({
+                'status': 'success',
+                'message': f'Batch data added successfully: {inserted_count} records',
+                'records_inserted': inserted_count
+            })
+
+        else:
+            # Обработка одиночного запроса - помечаем как одиночный
+            # Создаем копию и устанавливаем additional_field4 = 0 для одиночных записей
+            data_copy = data.copy()
+            data_copy['additional_field4'] = 0  # 0 = single, 1 = batch, NULL = unknown
+
+            query = """
+                INSERT INTO lora_tab
+                (user_id, user_location, cold, hot, alarm_time,
+                 destination_nodeid, sender_nodeid, packet_id, header_flags,
+                 channel_hash, next_hop, relay_node, packet_data,
+                 signal_level_dbm, full_packet_len, additional_field3, additional_field4)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING line_num, created_at
+            """
+
+            parameters = (
+                data_copy.get('user_id'),
+                data_copy.get('user_location'),
+                data_copy.get('cold'),
+                data_copy.get('hot'),
+                data_copy.get('alarm_time'),
+                data_copy.get('destination_nodeid'),  # TEXT для HEX
+                data_copy.get('sender_nodeid'),       # TEXT для HEX
+                data_copy.get('packet_id'),
+                data_copy.get('header_flags'),
+                data_copy.get('channel_hash'),
+                data_copy.get('next_hop'),
+                data_copy.get('relay_node'),
+                data_copy.get('packet_data'),
+                data_copy.get('signal_level_dbm'),
+                data_copy.get('full_packet_len'),
+                data_copy.get('additional_field3'),
+                data_copy.get('additional_field4')
+            )
+
+            cur.execute(query, parameters)
+            result = cur.fetchone()
+            conn.commit()
+
+            cur.close()
+            conn.close()
+
+            return jsonify({
+                'status': 'success',
+                'message': 'Data added successfully',
+                'line_num': result[0],
+                'created_at': result[1].isoformat()
+            })
+
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
     

@@ -305,6 +305,11 @@ void Control::loRaDataTask() {
           cold_value = cold_counter++;
         }
 
+        // Use new statistics counters
+        WiFiManager* wifiMgr = static_cast<WiFiManager*>(wifi_manager_global);
+        long received_count = wifiMgr->getLoraPacketsReceived();
+        long sent_count = wifiMgr->getPostRequestsSent();
+
         String postData;
         if (USE_FLASK_SERVER) {
           postData = "{";
@@ -314,18 +319,21 @@ void Control::loRaDataTask() {
           postData += "\"destination_nodeid\":\"" + m_wifiManager->getLastDestinationIdHex() + "\",";
           postData += "\"full_packet_len\":" + String(cold_value) + ",";
           postData += "\"signal_level_dbm\":" + String(m_wifiManager->getLastRssi()) + ",";
-          postData += "\"additional_field3\":" + String(m_wifiManager->getQueueSize());
+          postData += "\"cold\":" + String(received_count) + ",";
+          postData += "\"hot\":" + String(sent_count);
           postData += "}";
         } else {
           postData = "api_key=" + m_wifiManager->getAPIKey() +
                     "&user_id=" + m_wifiManager->getUserId() +
                     "&user_location=" + m_wifiManager->getUserLocation() +
-                    "&cold=" + String(cold_value) +
-                    "&hot=" + String(hot_value) +
+                    "&cold=" + String(received_count) +
+                    "&hot=" + String(sent_count) +
                     "&alarm_time=" + String(alarm_value);
         }
 
         ESP_LOGI(TAG, "Queueing POST request for LoRa packet");
+        // Increment LoRa packets counter
+        static_cast<WiFiManager*>(wifi_manager_global)->incrementLoraPacketsReceived();
         m_wifiManager->queuePostRequest(postData);
 
         if (post_on_lora && !POST_HOT_AS_RSSI) {

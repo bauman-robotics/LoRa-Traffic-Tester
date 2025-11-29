@@ -30,7 +30,6 @@ extern unsigned long status_Interval;
 #define WIFI_USE_FIXED_MAC 0  // If 1, use fixed MAC address specified below
 //#define WIFI_FIXED_MAC_ADDRESS {0x1c, 0xdb, 0xd4, 0xc6, 0x77, 0xf0}  // Fixed MAC address bytes (used if WIFI_USE_FIXED_MAC=1)
 #define WIFI_FIXED_MAC_ADDRESS {0x1c, 0xdb, 0xd4, 0xC3, 0xC9, 0xD4} 
-// MAC: 1C:DB:D4:C3:C9:D4   --- вариант, который заработал, без корпуса. 
 #define WIFI_CONNECT_ATTEMPTS 5  // Number of WiFi connection attempts
 #define WIFI_CONNECT_INTERVAL_MS 5000  // Interval between connection attempts
 //#define WIFI_CONNECT_INTERVAL_MS 10000  // Test Interval between connection attempts
@@ -50,9 +49,9 @@ extern unsigned long status_Interval;
 #include "fake_network_definitions.h"  // Fallback defaults
 #endif
 
-#define USE_HTTPS 0  // If 1, use HTTPS for server communication; if 0, use HTTP
+#define USE_HTTPS 1  // If 1, use HTTPS for server communication; if 0, use HTTP
 #define USE_INSECURE_HTTPS 1  // Если 1, пропустить проверку SSL сертификатов (эквивалент curl -k); если 0, проверять сертификаты
-#define POST_BATCH_ENABLED 0  // Enable sending multiple LoRa packets in one POST request (batch mode)
+#define POST_BATCH_ENABLED 1  // Enable sending multiple LoRa packets in one POST request (batch mode)
 
 
 #define POST_INTERVAL_EN 0  // Enable periodic POST requests (can be controlled via GUI)
