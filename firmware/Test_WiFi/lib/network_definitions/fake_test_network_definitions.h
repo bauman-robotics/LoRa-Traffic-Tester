@@ -10,7 +10,7 @@
 #define DEFAULT_SERVER_IP "192.168.1.100"  // Change to your server IP
 #define DEFAULT_SERVER_PORT "5001" 
 
-#define DEFAULT_SERVER_PATH "api/data"
+#define DEFAULT_SERVER_PATH "/api/lora"
 
 // WiFi connection settings
 #define WIFI_CONNECT_ATTEMPTS 3

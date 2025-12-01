@@ -37,8 +37,6 @@ def main():
     if os.path.exists(config_file):
         print("\nTest Configuration:")
         print(f"  POST Interval: {get_define_value(config_file, 'POST_INTERVAL_MS')} ms")
-        print(f"  Default Hot: {get_define_value(config_file, 'POST_HOT_VALUE')}")
-        print(f"  Default Cold: {get_define_value(config_file, 'POST_COLD_VALUE')}")
         print(f"  WiFi TX Power: {get_define_value(config_file, 'WIFI_TX_POWER_VARIANT')}")
 
     print("\nBuild environment check:")

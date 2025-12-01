@@ -22,7 +22,6 @@ WiFiManagerSimple::WiFiManagerSimple() :
 
     ESP_LOGI(TAG, "WiFi Test Manager initialized");
     ESP_LOGI(TAG, "Server: %s://%s/%s", serverProtocol.c_str(), serverIP.c_str(), serverPath.c_str());
-    ESP_LOGI(TAG, "POST values: hot=%d, cold=%d", hot_value, cold_value);
     ESP_LOGI(TAG, "POST interval: %d ms", POST_INTERVAL_MS);
 }
 
@@ -108,21 +107,21 @@ bool WiFiManagerSimple::doHttpPost() {
 
     WiFiClient client;
     int port = serverPort.toInt();
-    String path = "/api/lora";
+    String path = serverPath.c_str();
 
     // Increment cold counter (simple implementation)
     cold_value++;
 
-    String alarm_time = String(ALARM_TIME + random(0, 1000));
+    int alarm_time = ALARM_TIME + random(0, 1000);
 
     // JSON format
     String postData = "{";
-    postData += "\"api_key\":\"" + apiKey + "\",";
     postData += "\"user_id\":\"" + userId + "\",";
     postData += "\"user_location\":\"" + userLocation + "\",";
     postData += "\"cold\":" + String(cold_value) + ",";
     postData += "\"hot\":" + String(hot_value) + ",";
-    postData += "\"alarm_time\":\"" + alarm_time + "\"";
+    postData += "\"alarm_time\":" + String(alarm_time) + ",";
+    postData += "\"signal_level_dbm\":" + String(cold_value);
     postData += "}";
 
     ESP_LOGI(TAG, "POST #%lu: cold=%d, hot=%d", postsSent + 1, cold_value, hot_value);

@@ -2,6 +2,10 @@
     "files.associations": {
         "string": "cpp",
         "filesystem": "cpp",
-        "stdexcept": "cpp"
+        "stdexcept": "cpp",
+        "string_view": "cpp",
+        "bitset": "cpp",
+        "__locale": "cpp",
+        "__string": "cpp"
     }
 }

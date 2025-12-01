@@ -55,5 +55,3 @@
 #define TAG "WiFiTest"
 #define LOG_LEVEL_DEBUG 0  // Set to 1 for debug logs
 
-// LED pin for connection status (optional)
-#define STATUS_LED_PIN 2
