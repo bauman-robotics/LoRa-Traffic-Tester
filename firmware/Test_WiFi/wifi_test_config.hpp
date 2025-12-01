@@ -1,6 +1,6 @@
 #pragma once
 
-//#define USE_SYSTEM_NETWORK
+#define USE_SYSTEM_NETWORK
 
 #ifdef USE_SYSTEM_NETWORK
 #include "../../../test_network_definitions.h"

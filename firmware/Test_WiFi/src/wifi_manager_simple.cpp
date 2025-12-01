@@ -108,21 +108,27 @@ bool WiFiManagerSimple::doHttpPost() {
 
     WiFiClient client;
     int port = serverPort.toInt();
-    String path = "/" + serverPath;
+    String path = "/api/lora";
 
     // Increment cold counter (simple implementation)
     cold_value++;
 
     String alarm_time = String(ALARM_TIME + random(0, 1000));
 
-    String postData = "api_key=" + apiKey +
-                     "&user_id=" + userId +
-                     "&user_location=" + userLocation +
-                     "&cold=" + String(cold_value) +
-                     "&hot=" + String(hot_value) +
-                     "&alarm_time=" + alarm_time;
+    // JSON format
+    String postData = "{";
+    postData += "\"api_key\":\"" + apiKey + "\",";
+    postData += "\"user_id\":\"" + userId + "\",";
+    postData += "\"user_location\":\"" + userLocation + "\",";
+    postData += "\"cold\":" + String(cold_value) + ",";
+    postData += "\"hot\":" + String(hot_value) + ",";
+    postData += "\"alarm_time\":\"" + alarm_time + "\"";
+    postData += "}";
 
     ESP_LOGI(TAG, "POST #%lu: cold=%d, hot=%d", postsSent + 1, cold_value, hot_value);
+    ESP_LOGI(TAG, "POST to: http://%s:%d%s", serverIP.c_str(), port, path.c_str());
+    ESP_LOGI(TAG, "Curl: curl -X POST http://%s:%d%s -H \"Content-Type: application/json\" -d '%s'",
+             serverIP.c_str(), port, path.c_str(), postData.c_str());
 
     if (client.connect(serverIP.c_str(), port)) {
         client.setTimeout(5000);
@@ -131,7 +137,7 @@ bool WiFiManagerSimple::doHttpPost() {
         client.println("POST " + path + " HTTP/1.1");
         client.println("Host: " + serverIP);
         client.println("User-Agent: WiFi-Test-Device");
-        client.println("Content-Type: application/x-www-form-urlencoded");
+        client.println("Content-Type: application/json");
         client.println("Content-Length: " + String(postData.length()));
         client.println("Connection: close");
         client.println();

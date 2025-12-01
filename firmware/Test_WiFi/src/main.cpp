@@ -9,6 +9,7 @@ void setup() {
   delay(1000);
 
   ESP_LOGI("WiFiTest", "=== WiFi Power Consumption Test Started ===");
+  ESP_LOGI("WiFiTest", "WiFi SSID: %s", DEFAULT_WIFI_SSID);
   ESP_LOGI("WiFiTest", "POST_HOT_VALUE=%d, POST_COLD_VALUE=%d", POST_HOT_VALUE, POST_COLD_VALUE);
   ESP_LOGI("WiFiTest", "POST_INTERVAL_MS=%d", POST_INTERVAL_MS);
 
