@@ -42,7 +42,7 @@ void loop() {
     if (wifiManager->connect()) {
       ESP_LOGI("WiFiTest", "Reconnected successfully!");
     }
-    delay(5000); // Wait 5 seconds before retry
+    delay(10000); // Wait 5 seconds before retry
   }
 
   // Short delay to prevent busy loop

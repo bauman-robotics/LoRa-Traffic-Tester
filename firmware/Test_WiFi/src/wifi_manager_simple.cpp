@@ -130,7 +130,7 @@ bool WiFiManagerSimple::doHttpPost() {
              serverIP.c_str(), port, path.c_str(), postData.c_str());
 
     if (client.connect(serverIP.c_str(), port)) {
-        client.setTimeout(5000);
+        client.setTimeout(10000);
         ESP_LOGD(TAG, "Connected to server");
 
         client.println("POST " + path + " HTTP/1.1");
