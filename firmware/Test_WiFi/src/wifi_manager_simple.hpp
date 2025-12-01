@@ -3,7 +3,7 @@
 #include <WiFi.h>
 #include <WiFiClient.h>
 #include <Arduino.h>
-#include "wifi_test_config.hpp"
+#include "../wifi_test_config.hpp"
 
 class WiFiManagerSimple {
 public:
@@ -32,6 +32,7 @@ private:
     String serverProtocol;
     String serverIP;
     String serverPath;
+    String serverPort;
 
     int hot_value;
     int cold_value;

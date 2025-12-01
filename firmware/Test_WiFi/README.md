@@ -15,7 +15,17 @@
 ## 🔧 Настройка
 
 ### 1. Настройка сети
-Отредактируйте файл `lib/network_definitions/main_network_definitions.h`:
+Создайте файл на основе файла `lib/network_definitions/fake_test_network_definitions.h` 
+и пропишите к нему путь в wifi_test_config.hpp:
+
+//#define USE_SYSTEM_NETWORK
+
+#ifdef USE_SYSTEM_NETWORK
+#include "../../../test_network_definitions.h"
+#else
+#include "lib/network_definitions/fake_test_network_definitions.h"
+ // Fallback defaults
+#endif
 
 ```cpp
 #define DEFAULT_WIFI_SSID "ВАШ_WIFI_SSID"
@@ -88,7 +98,7 @@ Test_WiFi/
 │   └── main.cpp                    # Основная программа
 ├── lib/
 │   └── network_definitions/
-│       └── main_network_definitions.h  # Настройки сети
+│       └── fake_test_network_definitions.h  # Настройки сети
 ├── wifi_manager_simple.hpp         # Интерфейс WiFi менеджера
 ├── wifi_manager_simple.cpp         # Реализация WiFi менеджера
 ├── wifi_test_config.hpp            # Конфигурация проекта

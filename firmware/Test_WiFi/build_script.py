@@ -54,10 +54,13 @@ def activate_venv_if_needed():
 def parse_test_defines():
     """Parse define values from wifi_test_config.hpp."""
     defines = {}
-    config_files = ['wifi_test_config.hpp', 'lib/network_definitions/main_network_definitions.h']
-
+    #config_files = ['wifi_test_config.hpp', 'lib/network_definitions/fake_test_network_definitions.h']
+    config_files = ['wifi_test_config.hpp', '../../../test_network_definitions.h']
+    
     for config_file in config_files:
+        
         if os.path.exists(config_file):
+            print(f"config_file: {config_file}")
             with open(config_file, 'r') as f:
                 for line in f:
                     line = line.strip()
@@ -72,6 +75,7 @@ def parse_test_defines():
                                 value = value.split('/*')[0].strip()
                             defines[key] = value
     return defines
+
 
 def main():
     print("=" * 60)
@@ -90,8 +94,7 @@ def main():
     # Parse config for this project
     defines = parse_test_defines()
     print("\nWiFi Test Project defines:")
-    for key in ['POST_HOT_VALUE', 'POST_COLD_VALUE', 'POST_INTERVAL_MS',
-                'DEFAULT_WIFI_SSID', 'DEFAULT_API_KEY', 'DEFAULT_SERVER_IP']:
+    for key in [  'DEFAULT_WIFI_SSID', 'DEFAULT_WIFI_PASSWORD', 'DEFAULT_SERVER_IP', 'DEFAULT_SERVER_PORT', 'POST_INTERVAL_MS']:
         value = defines.get(key, 'Not set')
         if value.startswith('"') and value.endswith('"'):
             value = value[1:-1]  # Remove quotes
@@ -106,18 +109,18 @@ def main():
     print("\nBuilding WiFi Test project...")
 
     # Check and install PlatformIO if needed
-    if not check_pio(env=env):
-        print("PlatformIO CLI is not found. Installing in virtual environment...")
-        install_cmd = sys.executable + " -m pip install platformio"
-        if not run_command(install_cmd, env=env):
-            print("Failed to install PlatformIO. Please install manually:")
-            print("source ../venv/bin/activate && pip install platformio")
-            sys.exit(1)
+    # if not check_pio(env=env):
+    #     print("PlatformIO CLI is not found. Installing in virtual environment...")
+    #     install_cmd = sys.executable + " -m pip install platformio"
+    #     if not run_command(install_cmd, env=env):
+    #         print("Failed to install PlatformIO. Please install manually:")
+    #         print("source ../venv/bin/activate && pip install platformio")
+    #         sys.exit(1)
 
-        # Check again after installation
-        if not check_pio(env=env):
-            print("PlatformIO installation failed.")
-            sys.exit(1)
+    #     # Check again after installation
+    #     if not check_pio(env=env):
+    #         print("PlatformIO installation failed.")
+    #         sys.exit(1)
 
     # Build the project
     build_cmd = 'pio run'

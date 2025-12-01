@@ -1,6 +1,6 @@
 #include <Arduino.h>
 #include "../wifi_test_config.hpp"
-#include "../wifi_manager_simple.hpp"
+#include "wifi_manager_simple.hpp"
 
 WiFiManagerSimple* wifiManager = nullptr;
 

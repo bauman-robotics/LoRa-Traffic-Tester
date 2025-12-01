@@ -18,6 +18,7 @@ WiFiManagerSimple::WiFiManagerSimple() :
     serverProtocol = DEFAULT_SERVER_PROTOCOL;
     serverIP = DEFAULT_SERVER_IP;
     serverPath = DEFAULT_SERVER_PATH;
+    serverPort = DEFAULT_SERVER_PORT;
 
     ESP_LOGI(TAG, "WiFi Test Manager initialized");
     ESP_LOGI(TAG, "Server: %s://%s/%s", serverProtocol.c_str(), serverIP.c_str(), serverPath.c_str());
@@ -106,7 +107,7 @@ bool WiFiManagerSimple::doHttpPost() {
     }
 
     WiFiClient client;
-    int port = 80;
+    int port = serverPort.toInt();
     String path = "/" + serverPath;
 
     // Increment cold counter (simple implementation)

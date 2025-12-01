@@ -1,6 +1,14 @@
 #pragma once
 
-#include "lib/network_definitions/main_network_definitions.h"
+//#define USE_SYSTEM_NETWORK
+
+#ifdef USE_SYSTEM_NETWORK
+#include "../../../test_network_definitions.h"
+#else
+#include "lib/network_definitions/fake_test_network_definitions.h"
+ // Fallback defaults
+#endif
+
 
 // WiFi Configuration (copied from main lora_config.hpp)
 #define WIFI_ENABLE 1
