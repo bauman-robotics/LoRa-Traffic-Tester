@@ -1,6 +1,9 @@
 #include <Arduino.h>
 #include "../wifi_test_config.hpp"
 #include "wifi_manager_simple.hpp"
+#if WIFI_POST_SLEEP
+#include <esp_sleep.h>
+#endif
 
 WiFiManagerSimple* wifiManager = nullptr;
 
@@ -25,6 +28,31 @@ void setup() {
   }
 }
 
+// void loop() {
+//   static unsigned long lastPostTime = 0;
+//   unsigned long currentTime = millis();
+
+//   // Check WiFi connection status
+//   bool isConnected = wifiManager->isConnected();
+
+//   // Send POST every POST_INTERVAL_MS
+//   if (isConnected && (currentTime - lastPostTime >= POST_INTERVAL_MS)) {
+//     ESP_LOGI("WiFiTest", "Time to send POST (interval: %d ms)", POST_INTERVAL_MS);
+//     wifiManager->doHttpPost();
+//     lastPostTime = currentTime;
+//   } else if (!isConnected) {
+//     ESP_LOGW("WiFiTest", "WiFi not connected, attempting reconnection...");
+//     if (wifiManager->connect()) {
+//       ESP_LOGI("WiFiTest", "Reconnected successfully!");
+//     }
+//     delay(10000); // Wait 5 seconds before retry
+//   }
+
+//   // Short delay to prevent busy loop
+//   delay(1000);
+
+// }
+
 void loop() {
   static unsigned long lastPostTime = 0;
   unsigned long currentTime = millis();
@@ -35,14 +63,21 @@ void loop() {
   // Send POST every POST_INTERVAL_MS
   if (isConnected && (currentTime - lastPostTime >= POST_INTERVAL_MS)) {
     ESP_LOGI("WiFiTest", "Time to send POST (interval: %d ms)", POST_INTERVAL_MS);
-    wifiManager->doHttpPost();
-    lastPostTime = currentTime;
+    if (wifiManager->doHttpPost()) {
+      lastPostTime = currentTime;
+#if WIFI_POST_SLEEP
+      ESP_LOGI("WiFiTest", "Sleeping for %d ms after POST", POST_INTERVAL_MS);
+      wifiManager->disconnect();
+      esp_sleep_enable_timer_wakeup(POST_INTERVAL_MS * 1000LL);
+      esp_deep_sleep_start();
+#endif
+    }
   } else if (!isConnected) {
     ESP_LOGW("WiFiTest", "WiFi not connected, attempting reconnection...");
     if (wifiManager->connect()) {
       ESP_LOGI("WiFiTest", "Reconnected successfully!");
     }
-    delay(10000); // Wait 5 seconds before retry
+    delay(5000); // Wait 5 seconds before retry
   }
 
   // Short delay to prevent busy loop
