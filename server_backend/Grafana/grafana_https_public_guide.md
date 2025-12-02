@@ -39,7 +39,7 @@ ping YOUR-IP-WITH-DASHES.nip.io
 Отредактируйте конфигурацию Nginx:
 
 ```bash
-sudo nano /etc/nginx/sites-available/YOUR-CONFIG-NAME
+sudo nano /etc/nginx/sites-available/lora-api
 ```
 
 Пример конфигурации:
