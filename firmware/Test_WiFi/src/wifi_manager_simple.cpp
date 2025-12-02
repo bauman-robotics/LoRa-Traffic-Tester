@@ -112,7 +112,7 @@ bool WiFiManagerSimple::doHttpPost() {
     // Increment cold counter (simple implementation)
     cold_value++;
 
-    int alarm_time = ALARM_TIME + random(0, 1000);
+    //int alarm_time = ALARM_TIME + random(0, 1000);
 
     // JSON format
     String postData = "{";
@@ -120,7 +120,8 @@ bool WiFiManagerSimple::doHttpPost() {
     postData += "\"user_location\":\"" + userLocation + "\",";
     postData += "\"cold\":" + String(cold_value) + ",";
     postData += "\"hot\":" + String(hot_value) + ",";
-    postData += "\"alarm_time\":" + String(alarm_time) + ",";
+    postData += "\"full_packet_len\":" + String(cold_value - hot_value) + ",";    
+    //postData += "\"alarm_time\":" + String(alarm_time) + ",";
     postData += "\"signal_level_dbm\":" + String(cold_value);
     postData += "}";
 
@@ -130,7 +131,7 @@ bool WiFiManagerSimple::doHttpPost() {
              serverIP.c_str(), port, path.c_str(), postData.c_str());
 
     if (client.connect(serverIP.c_str(), port)) {
-        client.setTimeout(10000);
+        client.setTimeout(5000);
         ESP_LOGD(TAG, "Connected to server");
 
         client.println("POST " + path + " HTTP/1.1");
@@ -162,7 +163,9 @@ bool WiFiManagerSimple::doHttpPost() {
         if (response.indexOf("200") >= 0 || response.length() > 0) {
             lastSuccessfulPost = millis();
             postsSent++;
-            ESP_LOGI(TAG, "POST #%lu successful (cold=%d)", postsSent, cold_value);
+            // Increment hot counter (simple implementation)
+            hot_value++;
+            ESP_LOGI(TAG, "POST #%lu successful (cold=%d, (hot=%d))", postsSent, cold_value, hot_value);
             return true;
         } else {
             ESP_LOGE(TAG, "POST failed: response len=%d", response.length());

@@ -55,4 +55,4 @@
 #define TAG "WiFiTest"
 #define LOG_LEVEL_DEBUG 0  // Set to 1 for debug logs
 
-#define WIFI_POST_SLEEP 1
+#define WIFI_POST_SLEEP 0

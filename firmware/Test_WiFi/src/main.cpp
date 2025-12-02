@@ -22,6 +22,8 @@ void setup() {
   // Try to connect to WiFi
   if (wifiManager->connect()) {
     ESP_LOGI("WiFiTest", "WiFi connected successfully!");
+    //ESP_LOGI("WiFiTest", "Wait 10 sec first");
+    //delay(30000);
   } else {
     ESP_LOGE("WiFiTest", "WiFi connection failed! Check your settings.");
     ESP_LOGI("WiFiTest", "Make sure to update network_definitions.h with your WiFi credentials");
