@@ -58,7 +58,6 @@ sudo apt install certbot python3-certbot-nginx -y
 
 ```
 IP: 192.168.1.100 → Домен: 192-168-1-100.nip.io
-IP: 84.252.143.212 → Домен: 84-252-143-212.nip.io
 ```
 
 Проверка:
