@@ -14,12 +14,15 @@
 #
 # После установки зависимостей можно запускать build_script.py
 # Скрипт автоматически активирует venv при необходимости.
+#
+# Список всех установленных пакетов:
+# pip list
+#
+# Список в формате requirements.txt
+# pip freeze
+# Если у вас уже установлены нужные пакеты
+# pip freeze > requirements.txt
 
-Flask>=2.3.0
-Werkzeug>=2.3.0
-Jinja2>=3.1.0
-itsdangerous>=2.1.0
-click>=8.1.0
-blinker>=1.6.0
-psycopg2-binary>=2.9.0
-python-dotenv>=1.0.0
+gunicorn
+flask
+psycopg2-binary

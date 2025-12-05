@@ -1,7 +1,8 @@
 # sudo nano /etc/systemd/system/lora-api.service
+
 [Unit]
 Description=LoRa Flask API Server
-After=network.target postgresql.service
+After=network.target postgresql.service nginx.service
 Wants=postgresql.service
 
 [Service]
@@ -12,21 +13,22 @@ WorkingDirectory=/root/lora_flask_api
 Environment=PATH=/root/lora_flask_api/venv/bin
 Environment=PYTHONUNBUFFERED=1
 
-# Используем Gunicorn вместо прямого запуска Python
+# Теперь слушаем только localhost!
 ExecStart=/root/lora_flask_api/venv/bin/gunicorn \
-          --bind 0.0.0.0:5001 \
-          --workers 2 \
-          --timeout 60 \
+          --bind 127.0.0.1:5001 \
+          --workers 4 \
+          --timeout 120 \
           --access-logfile - \
           --error-logfile - \
           lora_api:app
 
 Restart=always
 RestartSec=10
-
-# Логирование
 StandardOutput=journal
 StandardError=journal
 
 [Install]
 WantedBy=multi-user.target
+
+
+

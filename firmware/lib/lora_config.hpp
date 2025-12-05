@@ -49,7 +49,7 @@ extern unsigned long status_Interval;
 #include "fake_network_definitions.h"  // Fallback defaults
 #endif
 
-#define USE_HTTPS 1  // If 1, use HTTPS for server communication; if 0, use HTTP
+#define USE_HTTPS 0  // If 1, use HTTPS for server communication; if 0, use HTTP
 #define USE_INSECURE_HTTPS 1  // Если 1, пропустить проверку SSL сертификатов (эквивалент curl -k); если 0, проверять сертификаты
 #define POST_BATCH_ENABLED 1  // Enable sending multiple LoRa packets in one POST request (batch mode)
 

@@ -1,0 +1,218 @@
+# sudo nano /etc/nginx/sites-available/lora-api
+
+# Полная оптимизированная конфигурация Nginx для LoRa Traffic Tester
+# На основе текущей конфигурации с добавлением HTTP API доступа для ESP32
+
+# replace: 192-168-0-1
+# replace: 192.168.0.1
+
+# Upstream для API (для балансировки нагрузки в будущем)
+upstream lora_api {
+    server 127.0.0.1:5001;
+    # Можно добавить несколько серверов для load balancing:
+    # server 127.0.0.1:5002 backup;
+}
+
+# HTTPS сервер (основной)
+server {
+    listen 443 ssl http2;
+    server_name 192-168-0-1.nip.io;
+
+    # SSL сертификаты Let's Encrypt
+    ssl_certificate /etc/letsencrypt/live/192-168-0-1.nip.io/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/192-168-0-1.nip.io/privkey.pem;
+
+    # SSL настройки безопасности
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256;
+    ssl_prefer_server_ciphers off;
+
+    # Дополнительные заголовки безопасности
+    add_header X-Frame-Options SAMEORIGIN;
+    add_header X-Content-Type-Options nosniff;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    add_header X-XSS-Protection "1; mode=block";
+
+    # API endpoints (Flask)
+    location /api/ {
+        # Используем upstream для лучшей производительности
+        proxy_pass http://lora_api;
+
+        # Стандартные proxy заголовки
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # CORS заголовки для ESP32 и веб-клиентов
+        add_header Access-Control-Allow-Origin * always;
+        add_header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS" always;
+        add_header Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With" always;
+        add_header Access-Control-Max-Age 86400 always;
+
+        # Обработка preflight OPTIONS запросов
+        if ($request_method = 'OPTIONS') {
+            add_header Access-Control-Allow-Origin * always;
+            add_header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS" always;
+            add_header Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With" always;
+            add_header Content-Type 'text/plain charset=UTF-8';
+            add_header Content-Length 0;
+            return 204;
+        }
+
+        # Оптимизированные таймауты для API
+        proxy_connect_timeout 30;
+        proxy_send_timeout 30;
+        proxy_read_timeout 30;
+
+        # Оптимизация буферов для API
+        proxy_buffering on;
+        proxy_buffer_size 4k;
+        proxy_buffers 8 4k;
+        proxy_busy_buffers_size 8k;
+
+        # Отдельные логи для API
+        access_log /var/log/nginx/api_access.log;
+        error_log /var/log/nginx/api_error.log;
+    }
+
+    # Grafana (веб-интерфейс)
+    location /grafana/ {
+        proxy_pass http://127.0.0.1:3000/grafana/;
+
+        # Заголовки для прокси
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # WebSocket поддержка для Grafana
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+
+        # Увеличенные таймауты для WebSocket и больших запросов
+        proxy_connect_timeout 300;
+        proxy_send_timeout 300;
+        proxy_read_timeout 300;
+        send_timeout 300;
+
+        # Оптимизация буферов для Grafana
+        proxy_buffering off;
+        proxy_buffer_size 128k;
+        proxy_buffers 4 256k;
+        proxy_busy_buffers_size 256k;
+
+        # Поддержка больших файлов (логи, экспорт)
+        client_max_body_size 50M;
+
+        # Логи для Grafana
+        access_log /var/log/nginx/grafana_access.log;
+        error_log /var/log/nginx/grafana_error.log;
+    }
+
+    # Редирект с корня на Grafana
+    location / {
+        return 301 https://$server_name/grafana/;
+    }
+}
+
+# HTTP сервер (для ESP32 и обратной совместимости)
+server {
+    listen 80;
+    server_name 192.168.0.1;
+    # Альтернативное имя сервера
+    # server_name 192-168-0-1.nip.io;
+
+    # API через HTTP (для ESP32 устройств)
+    location /api/ {
+        proxy_pass http://lora_api;
+
+        # Прокси заголовки
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # CORS для ESP32
+        add_header Access-Control-Allow-Origin * always;
+        add_header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS" always;
+        add_header Access-Control-Allow-Headers "Content-Type, Authorization" always;
+
+        # Обработка OPTIONS
+        if ($request_method = 'OPTIONS') {
+            add_header Access-Control-Allow-Origin * always;
+            add_header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS" always;
+            add_header Access-Control-Allow-Headers "Content-Type, Authorization" always;
+            add_header Content-Type 'text/plain charset=UTF-8';
+            add_header Content-Length 0;
+            return 204;
+        }
+
+        # Таймауты для медленных ESP32
+        proxy_connect_timeout 60;
+        proxy_send_timeout 60;
+        proxy_read_timeout 60;
+        send_timeout 60;
+
+        # Минимальные буферы для ESP32
+        proxy_buffering on;
+        proxy_buffer_size 4k;
+        proxy_buffers 4 4k;
+
+        # Логи для HTTP API
+        access_log /var/log/nginx/http_api_access.log;
+        error_log /var/log/nginx/http_api_error.log;
+    }
+
+    # Редирект остальных запросов на HTTPS
+    location / {
+        return 301 https://$server_name$request_uri;
+    }
+}
+
+# Дополнительные настройки в nginx.conf (рекомендуется добавить)
+# /etc/nginx/nginx.conf в секции http:
+#
+# http {
+#     # Увеличенные лимиты
+#     client_max_body_size 50M;
+#     client_body_buffer_size 128k;
+#
+#     # Таймауты
+#     keepalive_timeout 300;
+#     client_body_timeout 300;
+#     client_header_timeout 300;
+#     send_timeout 300;
+#
+#     # Gzip сжатие
+#     gzip on;
+#     gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
+#
+#     # Rate limiting (опционально)
+#     limit_req_zone $binary_remote_addr zone=api:10m rate=10r/m;
+# }
+
+# Команды для применения конфигурации:
+#
+# 1. Проверить синтаксис:
+# sudo nginx -t
+#
+# 2. Применить изменения:
+# sudo systemctl reload nginx
+#
+# 3. Проверить статус:
+# sudo systemctl status nginx
+#
+# 4. Проверить логи:
+# sudo tail -f /var/log/nginx/api_access.log
+# sudo tail -f /var/log/nginx/error.log
+#
+# 5. Тестирование API:
+# curl -X POST http://192.168.0.1/api/lora \
+#   -H "Content-Type: application/json" \
+#   -d '{"user_id":"test","cold":1,"hot":0,"alarm_time":100}'
+#
+# 6. Тестирование Grafana:
+# curl -I https://192-168-0-1.nip.io/grafana/
+

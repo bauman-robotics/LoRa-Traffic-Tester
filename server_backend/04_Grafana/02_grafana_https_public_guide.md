@@ -529,4 +529,5 @@ sudo grafana-cli admin reset-admin-password newpassword
 curl -I http://127.0.0.1:3000/grafana/public/build/runtime.js
 
 # Проверить через Nginx
-curl -I https://YOUR-DOMAIN/grafana/p
+curl -I https://YOUR-DOMAIN/grafana/
+
