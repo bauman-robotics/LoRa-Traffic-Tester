@@ -1,5 +1,5 @@
 #include "wifi_manager_simple.hpp"
-
+#include "../wifi_test_config.hpp"
 WiFiManagerSimple::WiFiManagerSimple() :
     hot_value(POST_HOT_VALUE),
     cold_value(POST_COLD_VALUE),

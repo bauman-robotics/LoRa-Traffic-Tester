@@ -18,11 +18,6 @@
 #define WIFI_CONNECT_TIMEOUT_MS 15000
 
 // POST settings
-#define POST_HOT_DEFAULT 0
-#define POST_COLD_DEFAULT 0
 #define POST_INTERVAL_MS 10000  // 10 seconds
-#define ALARM_TIME 100
 
-// Buffer sizes
-#define POST_DATA_BUFFER_SIZE 512
-#define HTTP_RESPONSE_BUFFER_SIZE 1024
+

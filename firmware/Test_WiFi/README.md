@@ -38,8 +38,6 @@
 ### 2. Настройка тестовых данных
 В файле `wifi_test_config.hpp` можно изменить дефайны:
 ```cpp
-#define POST_HOT_VALUE 0    // Начальное значение hot
-#define POST_COLD_VALUE 0   // Начальное значение cold
 #define POST_INTERVAL_MS 10000  // Интервал отправки (мс)
 ```
 

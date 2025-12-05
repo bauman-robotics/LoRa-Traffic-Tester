@@ -46,8 +46,8 @@
 #endif
 
 // POST Configuration
-#define POST_HOT_VALUE POST_HOT_DEFAULT    // Define your hot value here (0 by default)
-#define POST_COLD_VALUE POST_COLD_DEFAULT  // Define your cold value here (0 by default)
+#define POST_HOT_VALUE 0    // Define your hot value here (0 by default)
+#define POST_COLD_VALUE 0  // Define your cold value here (0 by default)
 #define POST_INTERVAL_MS 10000             // 10 seconds
 #define SERVER_PING_ENABLED 0
 
@@ -56,3 +56,7 @@
 #define LOG_LEVEL_DEBUG 0  // Set to 1 for debug logs
 
 #define WIFI_POST_SLEEP 0
+
+// not used 
+#define DEFAULT_API_KEY "0"
+#define ALARM_TIME 100
