@@ -49,7 +49,7 @@ extern unsigned long status_Interval;
 #include "fake_network_definitions.h"  // Fallback defaults
 #endif
 
-#define USE_HTTPS 0  // If 1, use HTTPS for server communication; if 0, use HTTP
+#define USE_HTTPS 1  // If 1, use HTTPS for server communication; if 0, use HTTP
 #define USE_INSECURE_HTTPS 1  // Если 1, пропустить проверку SSL сертификатов (эквивалент curl -k); если 0, проверять сертификаты
 #define POST_BATCH_ENABLED 1  // Enable sending multiple LoRa packets in one POST request (batch mode)
 
@@ -131,8 +131,11 @@ extern unsigned long cold_counter;
 
 #if DEVICE_TYPE_TRANSMITTER == 0  // RECEIVER - устройство для приема данных и передачи по WiFi
     #define WIFI_ENABLE 1
-    #define POST_EN_WHEN_LORA_RECEIVED 1
     #define LORA_STATUS_ENABLED 0
+    //#define POST_EN_WHEN_LORA_RECEIVED 1
+    // Test 
+    #define POST_EN_WHEN_LORA_RECEIVED 1
+    #define POST_INTERVAL_EN 0
     // Остальные настройки остаются дефолтными как в начале файла
 
 #elif DEVICE_TYPE_TRANSMITTER == 1  // TRANSMITTER - устройство для передачи LoRa статусов
