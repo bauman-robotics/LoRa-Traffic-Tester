@@ -8,6 +8,9 @@
 // LoRa packet payload length storage
 int lastLoRaPacketLen = 0;
 
+// Forward declaration for TAG
+extern const char *TAG;
+
 WiFiManager::WiFiManager() {
   // Initialize WiFi mode and other setup
   WiFi.mode(WIFI_STA);
@@ -19,6 +22,14 @@ void WiFiManager::setLastLoRaPacketLen(int len) {
 
 int WiFiManager::getLastLoRaPacketLen() {
   return lastLoRaPacketLen;
+}
+
+String WiFiManager::getMacAddress() const {
+  uint8_t mac[6];
+  WiFi.macAddress(mac);
+  char macStr[18];
+  sprintf(macStr, "%02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+  return String(macStr);
 }
 
 void WiFiManager::loadSettings() {
@@ -49,6 +60,51 @@ void WiFiManager::loadSettings() {
 #endif
   serverPath = DEFAULT_SERVER_PATH;
 #endif
+
+  // ================ DIAGNOSTIC START ==================
+  ESP_LOGI(TAG, "================== DIAGNOSTIC START ==================");
+  ESP_LOGI(TAG, "MAC Address: %s", getMacAddress().c_str());
+  ESP_LOGI(TAG, "Server Protocol: %s", serverProtocol.c_str());
+  ESP_LOGI(TAG, "Server IP: %s", serverIP.c_str());
+  ESP_LOGI(TAG, "Server Port: %s", serverPort.c_str());
+  ESP_LOGI(TAG, "User ID: %s", userId.c_str());
+  ESP_LOGI(TAG, "HTTPS Settings: USE_HTTPS=%d, USE_INSECURE_HTTPS=%d", USE_HTTPS, USE_INSECURE_HTTPS);
+
+  // Диагностика LittleFS
+  if (!LittleFS.begin()) {
+    ESP_LOGI(TAG, "LittleFS Status: CORRUPTED - attempting recovery...");
+    if (LittleFS.format() && LittleFS.begin()) {
+      ESP_LOGI(TAG, "LittleFS recovered successfully");
+    } else {
+      ESP_LOGE(TAG, "LittleFS recovery failed");
+    }
+  }
+
+  if (LittleFS.begin()) {
+    size_t total = LittleFS.totalBytes();
+    size_t used = LittleFS.usedBytes();
+    ESP_LOGI(TAG, "LittleFS Status: OK (%d/%d bytes used)", used, total);
+
+    // Вывод сохраненных данных если файл существует
+    if (LittleFS.exists("/wifi_credentials.txt")) {
+      File file = LittleFS.open("/wifi_credentials.txt", FILE_READ);
+      if (file) {
+        String saved_ssid = file.readStringUntil('\n');
+        String saved_pass = file.readStringUntil('\n');
+        file.close();
+        saved_ssid.trim();
+        saved_pass.trim();
+        ESP_LOGI(TAG, "Saved WiFi - SSID: %s, Password: %s", saved_ssid.c_str(),
+                saved_pass.length() > 0 ? "[SET]" : "[NOT SET]");
+      }
+    } else {
+      ESP_LOGI(TAG, "Saved WiFi: No credentials file");
+    }
+  } else {
+    ESP_LOGI(TAG, "LittleFS Status: CORRUPTED");
+  }
+  ESP_LOGI(TAG, "================== DIAGNOSTIC END ==================");
+
   ESP_LOGI(TAG, "Settings loaded from defaults");
   std::string settings = "Network defaults:\n";
   settings += "SSID: " + std::string(ssid.c_str()) + "\n";
@@ -68,6 +124,8 @@ void WiFiManager::loadSettings() {
   ESP_LOGI(TAG, "  POST_INTERVAL_EN=%d", POST_INTERVAL_EN);
   ESP_LOGI(TAG, "  POST_EN_WHEN_LORA_RECEIVED=%d", POST_EN_WHEN_LORA_RECEIVED);
   ESP_LOGI(TAG, "  POST_HOT_AS_RSSI=%d, POST_BATCH_ENABLED=%d", POST_HOT_AS_RSSI, POST_BATCH_ENABLED);
+  ESP_LOGI(TAG, "POST Queue settings: MAX_QUEUE_SIZE=%d, BATCH_SIZE=%d", MAX_QUEUE_SIZE, BATCH_SIZE);
+  ESP_LOGI(TAG, "POST Queue status: current_size=%d, postRequestsSent=%lu, failedRequests=%lu", postQueue.size(), postRequestsSent, failedRequests);
   ESP_LOGI(TAG, "MESH settings:");
   ESP_LOGI(TAG, "  MESH_COMPATIBLE=%d", MESH_COMPATIBLE);
   ESP_LOGI(TAG, "  MESH_SYNC_WORD=0x%02X", MESH_SYNC_WORD);
@@ -307,7 +365,16 @@ void WiFiManager::enable(bool state) {
   if (state) {
     enabled = true;
     if (connect()) {
-      lastHttpResult = "WiFi connected, waiting for first POST...";
+      lastHttpResult = "WiFi connected, waiting before sending initial POST...";
+
+      // Add delay after WiFi connect before sending initial POST
+      ESP_LOGI(TAG, "Waiting %d ms after WiFi connect before sending initial POST...", WIFI_POST_DELAY_MS);
+      vTaskDelay(pdMS_TO_TICKS(WIFI_POST_DELAY_MS));
+
+      lastHttpResult = "WiFi connected, sending initial POST...";
+      // Send initial POST with config values on WiFi connect
+      sendInitialPost();
+
       startPOSTTask();
       #if SERVER_PING_ENABLED
         startPingTask();
@@ -356,6 +423,56 @@ void WiFiManager::sendSinglePost() {
   }
 }
 
+void WiFiManager::sendInitialPost() {
+  ESP_LOGI(TAG, "Sending initial POST on WiFi connect...");
+
+#if USE_FLASK_SERVER
+  // Create JSON with config values and zeros for other fields
+  String postData = "{";
+  postData += "\"user_id\":\"" + userId + "\",";
+  postData += "\"user_location\":\"" + userLocation + "\",";
+  postData += "\"sender_nodeid\":\"00000000\",";        // Zero
+  postData += "\"destination_nodeid\":\"00000000\",";   // Zero
+  postData += "\"full_packet_len\":0,";                 // Zero
+  postData += "\"signal_level_dbm\":0";                 // Zero
+  postData += "}";
+#else
+  // For PHP server
+  String postData = "api_key=" + apiKey +
+                    "&user_id=" + userId +
+                    "&user_location=" + userLocation +
+                    "&cold=0&hot=0&alarm_time=0";       // All zeros
+#endif
+
+  ESP_LOGI(TAG, "Initial POST data: %s", postData.c_str());
+
+  // Send directly without queuing
+  doHttpPostFromData(postData);
+}
+
+void WiFiManager::sendPostAsync(const String& postData) {
+  ESP_LOGI(TAG, "Starting async POST task...");
+
+  // Create a copy of the data for the async task
+  String* asyncData = new String(postData);
+
+  // Create async task to send POST without blocking main thread
+  xTaskCreate([](void* param) {
+    String* data = static_cast<String*>(param);
+    WiFiManager* wifiMgr = new WiFiManager(); // Create temporary instance
+
+    ESP_LOGI("WiFiManager", "Async POST task started");
+    wifiMgr->doHttpPostFromData(*data);
+
+    // Cleanup
+    delete data;
+    delete wifiMgr;
+    vTaskDelete(NULL);
+  }, "AsyncPOST", 4096, asyncData, 1, NULL);
+
+  ESP_LOGI(TAG, "Async POST task created successfully");
+}
+
 void WiFiManager::httpPostTaskWrapper(void *param) {
   static_cast<WiFiManager*>(param)->httpPostTask();
 }
@@ -386,6 +503,20 @@ void WiFiManager::doHttpPostFromData(const String& postData) {
   String path = serverPath.startsWith("/") ? serverPath : "/" + serverPath;
   String contentType = USE_FLASK_SERVER ? "application/json" : "application/x-www-form-urlencoded";
 
+  // ================ POST REQUEST ==================
+  ESP_LOGI(TAG, "================== POST REQUEST ==================");
+  ESP_LOGI(TAG, "Protocol: %s", USE_HTTPS ? "HTTPS" : "HTTP");
+  ESP_LOGI(TAG, "Certificate Check: %s", USE_HTTPS && !USE_INSECURE_HTTPS ? "ENABLED" : "DISABLED/SKIPPED");
+  ESP_LOGI(TAG, "Server: %s:%s", serverIP.c_str(), serverPort.c_str());
+  ESP_LOGI(TAG, "Request Length: %d bytes", postData.length());
+  ESP_LOGI(TAG, "Attempt: 1/1 (queued request)");
+  ESP_LOGI(TAG, "Packets Sent: %lu", postRequestsSent);
+  ESP_LOGI(TAG, "Failed Packets: %lu", failedRequests);
+  ESP_LOGI(TAG, "Response Time - Current: %lu ms, Average: %lu ms, Min: %lu ms, Max: %lu ms",
+           lastResponseTime, avgResponseTime, minResponseTime, maxResponseTime);
+  ESP_LOGI(TAG, "Heap Status: %d bytes free, %d bytes min", ESP.getFreeHeap(), ESP.getMinFreeHeap());
+  ESP_LOGI(TAG, "================== POST END ==================");
+
   ESP_LOGI(TAG, "Sending queued POST request");
   ESP_LOGI(TAG, "Full postData: %s", postData.c_str());
 
@@ -406,7 +537,19 @@ void WiFiManager::doHttpPostFromData(const String& postData) {
     return;
   }
 
+  // Start timing the request
+  unsigned long requestStartTime = millis();
+
   ESP_LOGI(TAG, "Connecting to server %s on port %d", serverIP.c_str(), port);
+
+  // === SSL DIAGNOSTICS START ===
+  ESP_LOGI(TAG, "=== SSL DIAGNOSTICS START ===");
+  ESP_LOGI(TAG, "SSL Client state: connected=%d, available=%d",
+           client.connected(), client.available());
+  ESP_LOGI(TAG, "WiFi status: %d, local IP: %s",
+           WiFi.status(), WiFi.localIP().toString().c_str());
+  ESP_LOGI(TAG, "Free heap before SSL operation: %d bytes", ESP.getFreeHeap());
+  ESP_LOGI(TAG, "=== SSL DIAGNOSTICS END ===");
 
   // Log the full HTTP request being sent
   String fullRequest = "POST " + path + " HTTP/1.1\r\n";
@@ -419,8 +562,8 @@ void WiFiManager::doHttpPostFromData(const String& postData) {
   fullRequest += postData;
   ESP_LOGI(TAG, "Full HTTP request being sent:\n%s", fullRequest.c_str());
 
+  client.setTimeout(SERVER_CONNECTION_TIMEOUT_MS); // Set connection timeout
   if (client.connect(serverIP.c_str(), port)) {
-    client.setTimeout(5000); // Set timeout 5 seconds
     ESP_LOGI(TAG, "Connected to server for POST");
     ESP_LOGI(TAG, "Sending POST headers");
     client.println("POST " + path + " HTTP/1.1");
@@ -436,11 +579,11 @@ void WiFiManager::doHttpPostFromData(const String& postData) {
 
     // Wait for response
     ESP_LOGI(TAG, "Waiting for server response...");
-    delay(1000);  // Wait 1 second for response to start
+    delay(POST_RESPONSE_INITIAL_DELAY_MS);  // Configurable initial delay
     String response = "";
     unsigned long start = millis();
     bool responseStarted = false;
-    while (client.connected() && (millis() - start < 8000)) {  // Increased timeout to 8 seconds
+    while (client.connected() && (millis() - start < POST_RESPONSE_TOTAL_TIMEOUT_MS)) {  // Configurable total timeout
       if (client.available()) {
         if (!responseStarted) {
           ESP_LOGI(TAG, "Server response started");
@@ -474,14 +617,32 @@ void WiFiManager::doHttpPostFromData(const String& postData) {
     }
     client.stop();
 
+    // Calculate response time
+    unsigned long responseTime = millis() - requestStartTime;
+    lastResponseTime = responseTime;
+
+    // Update average response time
+    if (responseTimeCount == 0) {
+      avgResponseTime = responseTime;
+      minResponseTime = responseTime;
+      maxResponseTime = responseTime;
+    } else {
+      avgResponseTime = ((avgResponseTime * responseTimeCount) + responseTime) / (responseTimeCount + 1);
+
+      if (responseTime < minResponseTime) minResponseTime = responseTime;
+      if (responseTime > maxResponseTime) maxResponseTime = responseTime;
+    }
+    responseTimeCount++;
+
     if (response.indexOf("200") >= 0) {
       lastHttpResult = "Success: HTTP 200 (Queued POST sent)";
       postRequestsSent++;  // Increment successful POSTs counter
-      ESP_LOGI(TAG, "Queued POST success - Total sent: %lu, received: %lu",
-               postRequestsSent, loraPacketsReceived);
+      ESP_LOGI(TAG, "Queued POST success - Total sent: %lu, received: %lu, response time: %lu ms",
+               postRequestsSent, loraPacketsReceived, responseTime);
     } else {
       lastHttpResult = "Failed: Server error";
       ESP_LOGE(TAG, "Queued POST failed: response len=%d", response.length());
+      failedRequests++;
       // Return failed request to the front of queue for retry
       postQueue.insert(postQueue.begin(), postData);
       ESP_LOGW(TAG, "Request returned to queue for retry, queue size: %d", postQueue.size());
@@ -489,6 +650,10 @@ void WiFiManager::doHttpPostFromData(const String& postData) {
   } else {
     lastHttpResult = "Failed: Cannot connect to server " + serverIP;
     ESP_LOGE(TAG, "Cannot connect to server %s", serverIP.c_str());
+    failedRequests++;
+    // Return failed request to the front of queue for retry
+    postQueue.insert(postQueue.begin(), postData);
+    ESP_LOGW(TAG, "Connection failed, request returned to queue for retry, queue size: %d", postQueue.size());
   }
 }
 
@@ -552,6 +717,20 @@ void WiFiManager::doHttpPost() {
   ESP_LOGI(TAG, "Using PHP server with form-encoded POST data");
 #endif
 
+  // ================ POST REQUEST ==================
+  ESP_LOGI(TAG, "================== POST REQUEST ==================");
+  ESP_LOGI(TAG, "Protocol: %s", USE_HTTPS ? "HTTPS" : "HTTP");
+  ESP_LOGI(TAG, "Certificate Check: %s", USE_HTTPS && !USE_INSECURE_HTTPS ? "ENABLED" : "DISABLED/SKIPPED");
+  ESP_LOGI(TAG, "Server: %s:%s", serverIP.c_str(), serverPort.c_str());
+  ESP_LOGI(TAG, "Request Length: %d bytes", postData.length());
+  ESP_LOGI(TAG, "Attempt: 1/1 (direct request)");
+  ESP_LOGI(TAG, "Packets Sent: %lu", postRequestsSent);
+  ESP_LOGI(TAG, "Failed Packets: %lu", failedRequests);
+  ESP_LOGI(TAG, "Response Time - Current: %lu ms, Average: %lu ms, Min: %lu ms, Max: %lu ms",
+           lastResponseTime, avgResponseTime, minResponseTime, maxResponseTime);
+  ESP_LOGI(TAG, "Heap Status: %d bytes free, %d bytes min", ESP.getFreeHeap(), ESP.getMinFreeHeap());
+  ESP_LOGI(TAG, "================== POST END ==================");
+
   ESP_LOGD(TAG, "Preparing POST: cold=%ld, hot=%ld, path=%s, server=%s",
            cold_value, hot_value, path.c_str(), serverIP.c_str());
 #if USE_HTTPS
@@ -577,6 +756,9 @@ void WiFiManager::doHttpPost() {
     return;
   }
 
+  // Start timing the request
+  unsigned long requestStartTime = millis();
+
   ESP_LOGI(TAG, "Connecting to server %s on port %d", serverIP.c_str(), port);
 
   // Log the full HTTP request being sent
@@ -591,7 +773,7 @@ void WiFiManager::doHttpPost() {
   ESP_LOGI(TAG, "Full HTTP request being sent:\n%s", fullRequest.c_str());
 
   if (client.connect(serverIP.c_str(), port)) {
-    client.setTimeout(5000); // Set timeout 5 seconds
+    client.setTimeout(3000); // Set timeout 3 seconds (optimized)
     ESP_LOGI(TAG, "Connected to server for POST");
     ESP_LOGI(TAG, "Sending POST headers");
     client.println("POST " + path + " HTTP/1.1");
@@ -607,11 +789,11 @@ void WiFiManager::doHttpPost() {
 
     // Wait for response
     ESP_LOGI(TAG, "Waiting for server response...");
-    delay(1000);  // Wait 1 second for response to start
+    delay(POST_RESPONSE_INITIAL_DELAY_MS);  // Configurable initial delay
     String response = "";
     unsigned long start = millis();
     bool responseStarted = false;
-    while (client.connected() && (millis() - start < 8000)) {  // Increased timeout to 8 seconds
+    while (client.connected() && (millis() - start < POST_RESPONSE_TOTAL_TIMEOUT_MS)) {  // Configurable total timeout
       if (client.available()) {
         if (!responseStarted) {
           ESP_LOGI(TAG, "Server response started");
@@ -645,26 +827,45 @@ void WiFiManager::doHttpPost() {
     }
     client.stop();
 
+    // Calculate response time for doHttpPost() as well
+    unsigned long responseTime = millis() - requestStartTime;
+    lastResponseTime = responseTime;
+
+    // Update average response time
+    if (responseTimeCount == 0) {
+      avgResponseTime = responseTime;
+      minResponseTime = responseTime;
+      maxResponseTime = responseTime;
+    } else {
+      avgResponseTime = ((avgResponseTime * responseTimeCount) + responseTime) / (responseTimeCount + 1);
+
+      if (responseTime < minResponseTime) minResponseTime = responseTime;
+      if (responseTime > maxResponseTime) maxResponseTime = responseTime;
+    }
+    responseTimeCount++;
+
     if (response.indexOf("200") >= 0) {
 #if USE_FLASK_SERVER
       lastHttpResult = "Success: HTTP 200 (Flask JSON sent: sender_nodeid=" + uint32ToHexString(last_sender_id) +
                       ", destination_nodeid=" + uint32ToHexString(last_destination_id) +
                       ", full_packet_len=" + String(cold_value) +
                       ", signal_level_dbm=" + String(loraRssi) + ")";
-      ESP_LOGI(TAG, "POST success, Flask JSON: sender_nodeid=%s, destination_nodeid=%s, full_packet_len=%ld, signal_level_dbm=%d",
-               uint32ToHexString(last_sender_id).c_str(), uint32ToHexString(last_destination_id).c_str(), cold_value, loraRssi);
+      ESP_LOGI(TAG, "POST success, Flask JSON: sender_nodeid=%s, destination_nodeid=%s, full_packet_len=%ld, signal_level_dbm=%d, response time: %lu ms",
+               uint32ToHexString(last_sender_id).c_str(), uint32ToHexString(last_destination_id).c_str(), cold_value, loraRssi, responseTime);
 #else
       lastHttpResult = "Success: HTTP 200 (PHP form sent: cold=" + String(cold_value) + ", hot=" + String(hot_counter) + ")";
-      ESP_LOGI(TAG, "POST success, PHP form: cold=%ld, hot=%lu", cold_value, hot_counter);
+      ESP_LOGI(TAG, "POST success, PHP form: cold=%ld, hot=%lu, response time: %lu ms", cold_value, hot_counter, responseTime);
 #endif
       hot_counter++;
     } else {
       lastHttpResult = "Failed: Server error";
       ESP_LOGE(TAG, "POST failed: response len=%d", response.length());
+      failedRequests++;
     }
   } else {
     lastHttpResult = "Failed: Cannot connect to server " + serverIP;
     ESP_LOGE(TAG, "Cannot connect to server %s", serverIP.c_str());
+    failedRequests++;
   }
 }
 
@@ -720,22 +921,20 @@ void WiFiManager::httpPostTask() {
     // First, process any queued POST requests
     processPostQueue();
 
-    // Then handle periodic POSTs if enabled and not in LoRa trigger mode
-    if (!post_on_lora_mm) {
-      bool cond1 = enabled;
-      bool cond2 = isConnected();
-      bool cond3 = postEnabled;
-      if (cond1 && cond2 && cond3) {
-        ESP_LOGI(TAG, "POST Task: conditions met, sending periodic POST");
+    // Then handle periodic POSTs if enabled (independent of LoRa trigger mode)
+    if (POST_INTERVAL_EN) {
+      if (enabled && isConnected() && postEnabled) {
+        ESP_LOGI(TAG, "POST Task: periodic mode enabled, sending periodic POST");
         doHttpPost();
+        vTaskDelay(pdMS_TO_TICKS(POST_INTERVAL_MS));
       } else {
-        ESP_LOGD(TAG, "POST Task: waiting... enabled=%d, connected=%d, postEnabled=%d, queue_size=%d",
-                 cond1, cond2, cond3, postQueue.size());
+        ESP_LOGD(TAG, "POST Task: periodic waiting... enabled=%d, connected=%d, postEnabled=%d",
+                 enabled, isConnected(), postEnabled);
+        vTaskDelay(pdMS_TO_TICKS(500));  // Check conditions every 500ms
       }
-      vTaskDelay(pdMS_TO_TICKS(POST_INTERVAL_MS));
     } else {
-      // In LoRa trigger mode, just process queue and wait
-      ESP_LOGD(TAG, "POST Task: LoRa trigger mode, queue_size=%d", postQueue.size());
+      // In LoRa-only trigger mode, just process queue and wait
+      ESP_LOGD(TAG, "POST Task: LoRa-only trigger mode, queue_size=%d", postQueue.size());
       vTaskDelay(pdMS_TO_TICKS(500));  // Check queue every 500ms
     }
   }
@@ -757,88 +956,156 @@ String WiFiManager::getLastDestinationIdHex() const {
 
 // POST queue management
 void WiFiManager::queuePostRequest(const String& postData) {
+  ESP_LOGI(TAG, "=== QUEUE: Adding new POST request ===");
+  ESP_LOGI(TAG, "Queue before: size=%d, max_size=%d", postQueue.size(), MAX_QUEUE_SIZE);
+
   if (postQueue.size() >= MAX_QUEUE_SIZE) {
     ESP_LOGW(TAG, "POST queue full (%d), dropping oldest request", MAX_QUEUE_SIZE);
     postQueue.erase(postQueue.begin());  // Remove oldest
+    ESP_LOGW(TAG, "Dropped oldest request from queue");
   }
+
   postQueue.push_back(postData);
-  ESP_LOGI(TAG, "Queued POST request, queue size: %d", postQueue.size());
+  ESP_LOGI(TAG, "Added POST request to queue");
+  ESP_LOGI(TAG, "Queue after: size=%d", postQueue.size());
+
+  // Show queue status
+  if (postQueue.size() > 0) {
+    ESP_LOGI(TAG, "Queue contents preview:");
+    for (size_t i = 0; i < min((size_t)3, postQueue.size()); i++) {
+      ESP_LOGI(TAG, "  [%d]: %s...", i, postQueue[i].substring(0, 50).c_str());
+    }
+    if (postQueue.size() > 3) {
+      ESP_LOGI(TAG, "  ... and %d more items", postQueue.size() - 3);
+    }
+  }
+  ESP_LOGI(TAG, "=== QUEUE: Add complete ===");
 }
+
+// Static variable to avoid spamming logs when queue is empty
+static bool queueEmptyLogged = false;
 
 void WiFiManager::processPostQueue() {
   if (postQueue.empty()) {
+    // Log only once when queue becomes empty
+    if (!queueEmptyLogged) {
+      ESP_LOGI(TAG, "=== QUEUE: Processing queue ===");
+      ESP_LOGI(TAG, "Queue is empty, nothing to process");
+      ESP_LOGI(TAG, "=== QUEUE: Processing complete ===");
+      queueEmptyLogged = true;
+    }
     return;
   }
 
+  // Queue is not empty - reset flag and process
+  queueEmptyLogged = false;
+  ESP_LOGI(TAG, "=== QUEUE: Processing queue ===");
+  ESP_LOGI(TAG, "Queue size: %d", postQueue.size());
+
   if (!isConnected()) {
-    ESP_LOGD(TAG, "Not connected, cannot process queue");
+    ESP_LOGD(TAG, "WiFi not connected, cannot process queue");
+    ESP_LOGI(TAG, "=== QUEUE: Processing complete ===");
     return;
   }
+
+  ESP_LOGI(TAG, "WiFi connected, processing queue...");
 
 #if POST_BATCH_ENABLED
   // If batch mode enabled and we have enough items, send as batch
+  ESP_LOGI(TAG, "POST_BATCH_ENABLED=%d, checking batch conditions", POST_BATCH_ENABLED);
   if (postQueue.size() >= BATCH_SIZE) {
+    ESP_LOGI(TAG, "Enough items for batch (%d >= %d), sending batch", postQueue.size(), BATCH_SIZE);
     sendBatchPost();
+    ESP_LOGI(TAG, "=== QUEUE: Processing complete ===");
     return;
+  } else {
+    ESP_LOGI(TAG, "Not enough items for batch (%d < %d), sending individually", postQueue.size(), BATCH_SIZE);
   }
 #endif
 
   // Send individual requests (when batch disabled or queue is small)
+  ESP_LOGI(TAG, "Sending individual POST request");
   String postData = postQueue.front();
   postQueue.erase(postQueue.begin());
 
-  ESP_LOGI(TAG, "Processing individual queued POST, %d remaining in queue", postQueue.size());
+  ESP_LOGI(TAG, "Removed item from queue front");
+  ESP_LOGI(TAG, "Queue size after removal: %d", postQueue.size());
+  ESP_LOGI(TAG, "Processing POST data: %s...", postData.substring(0, 50).c_str());
 
   // Send the queued request
   doHttpPostFromData(postData);
+
+  ESP_LOGI(TAG, "=== QUEUE: Processing complete ===");
 }
 
 void WiFiManager::sendBatchPost() {
+  ESP_LOGI(TAG, "=== BATCH: Preparing batch POST ===");
+  ESP_LOGI(TAG, "Queue size before batch: %d", postQueue.size());
+  ESP_LOGI(TAG, "BATCH_SIZE=%d", BATCH_SIZE);
+
   if (postQueue.size() < BATCH_SIZE) {
     ESP_LOGW(TAG, "Not enough items for batch (%d < %d)", postQueue.size(), BATCH_SIZE);
+    ESP_LOGI(TAG, "=== BATCH: Cancelled ===");
     return;
   }
 
+  ESP_LOGI(TAG, "Preparing to send batch with %d items", BATCH_SIZE);
+
 #if USE_FLASK_SERVER
+  ESP_LOGI(TAG, "Creating JSON array for Flask server");
   // Create JSON array with first BATCH_SIZE items
   String batchData = "[";
 
   for (size_t i = 0; i < BATCH_SIZE; i++) {
     if (i > 0) batchData += ",";
     batchData += postQueue[i];
+    ESP_LOGD(TAG, "Added item %d to batch: %s...", i, postQueue[i].substring(0, 30).c_str());
   }
   batchData += "]";
 
+  ESP_LOGI(TAG, "Batch JSON created, length: %d bytes", batchData.length());
+  ESP_LOGI(TAG, "Batch preview: %s...", batchData.substring(0, 100).c_str());
+
   // Remove the batched items from queue
+  ESP_LOGI(TAG, "Removing %d items from queue", BATCH_SIZE);
   postQueue.erase(postQueue.begin(), postQueue.begin() + BATCH_SIZE);
 
-  ESP_LOGI(TAG, "Sending batch POST with %d items, %d remaining in queue", BATCH_SIZE, postQueue.size());
+  ESP_LOGI(TAG, "Queue size after batch removal: %d", postQueue.size());
+  ESP_LOGI(TAG, "Sending batch POST...");
 
   // Send the batch
   doHttpPostFromData(batchData);
+
+  ESP_LOGI(TAG, "=== BATCH: Complete ===");
 #else
   // For PHP server, fall back to individual requests
   ESP_LOGW(TAG, "Batch sending not supported for PHP server, sending individually");
+  ESP_LOGI(TAG, "Processing %d items individually", BATCH_SIZE);
+
   for (size_t i = 0; i < BATCH_SIZE && !postQueue.empty(); i++) {
+    ESP_LOGI(TAG, "Sending individual item %d/%d", i + 1, BATCH_SIZE);
     String postData = postQueue.front();
     postQueue.erase(postQueue.begin());
+    ESP_LOGD(TAG, "Removed item from queue, size now: %d", postQueue.size());
     doHttpPostFromData(postData);
   }
+
+  ESP_LOGI(TAG, "=== BATCH: Individual processing complete ===");
 #endif
 }
 
 // Convert IP address to nip.io format for HTTPS public access
-String WiFiManager::getNipIoUrl(String ip, int port, String path) {
+String getNipIoUrl(String ip, int port, String path) {
   String nipIp = ip;
   nipIp.replace(".", "-");
   return "https://" + nipIp + ".nip.io:" + String(port) + path;
 }
 
 #if WIFI_DEBUG_FIXES
-void WiFiManager::WiFiEvent(WiFiEvent_t event) {
+void WiFiEvent(WiFiEvent_t event) {
   switch (event) {
     case SYSTEM_EVENT_STA_DISCONNECTED:
-      ESP_LOGI(TAG, "WiFi lost connection. Reconnecting...");
+      ESP_LOGI("WiFiManager", "WiFi lost connection. Reconnecting...");
       WiFi.reconnect();
       break;
     default:

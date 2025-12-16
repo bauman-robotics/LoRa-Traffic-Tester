@@ -13,6 +13,9 @@ unsigned long cold_counter = COLD_INITIAL;
 // Initialize hot counter (successful POSTs)
 unsigned long hot_counter = 0;
 
+// Initialize fake RSSI counter for debugging
+int fake_rssi_counter = 0;  // Start from 0 dBm (will increment to INT_MAX)
+
 // Remove postMode for stability
 
 Control::Control() {
@@ -110,6 +113,11 @@ void Control::setup() {
   //m_saveFlash->begin();  // Initialize flash storage
 
   m_wifiManager->loadSettings();
+
+  // Initialize POST mode based on configuration
+  post_on_lora = POST_EN_WHEN_LORA_RECEIVED;
+  ESP_LOGI(TAG, "POST mode initialized: post_on_lora=%d (from POST_EN_WHEN_LORA_RECEIVED=%d)",
+           post_on_lora, POST_EN_WHEN_LORA_RECEIVED);
 
   // Auto enable WiFi if configured
   if (WIFI_ENABLE) {
@@ -283,7 +291,16 @@ void Control::loRaDataTask() {
       }
 
       // Queue POST request instead of immediate trigger
+      ESP_LOGI(TAG, "=== POST TRIGGER DEBUG ===");
+      ESP_LOGI(TAG, "POST_EN_WHEN_LORA_RECEIVED=%d", POST_EN_WHEN_LORA_RECEIVED);
+      ESP_LOGI(TAG, "post_on_lora=%d", post_on_lora);
+      ESP_LOGI(TAG, "WiFi enabled=%d", wifi_enabled);
+      ESP_LOGI(TAG, "WiFi connected=%d", WiFi.status() == WL_CONNECTED);
+      ESP_LOGI(TAG, "WiFiManager enabled=%d", m_wifiManager->isEnabled());
+
       if (post_on_lora) {
+        ESP_LOGI(TAG, "POST trigger condition met, building POST data...");
+
         // Build POST data similar to doHttpPost but queue instead of send
         extern unsigned long cold_counter;
         extern unsigned long hot_counter;
@@ -309,16 +326,24 @@ void Control::loRaDataTask() {
         WiFiManager* wifiMgr = static_cast<WiFiManager*>(wifi_manager_global);
         long received_count = wifiMgr->getLoraPacketsReceived();
         long sent_count = wifiMgr->getPostRequestsSent();
+        long failed_count = wifiMgr->getFailedRequests();  // Get failed requests count
+
+        // Use fake RSSI counter for FAKE_LORA mode debugging (0 to INT_MAX)
+        int signal_level_dbm = FAKE_LORA ? fake_rssi_counter++ : m_wifiManager->getLastRssi();
 
         String postData;
         if (USE_FLASK_SERVER) {
+          // Для RECEIVER (DEVICE_TYPE=0) передаем длину LoRa пакета
+          // Для TEST_HTTP_POST (DEVICE_TYPE=2) передаем количество failed requests
+          long packet_len_value = (DEVICE_TYPE == 0) ? m_wifiManager->getLastLoRaPacketLen() : failed_count;
+
           postData = "{";
           postData += "\"user_id\":\"" + m_wifiManager->getUserId() + "\",";
           postData += "\"user_location\":\"" + m_wifiManager->getUserLocation() + "\",";
           postData += "\"sender_nodeid\":\"" + m_wifiManager->getLastSenderIdHex() + "\",";
           postData += "\"destination_nodeid\":\"" + m_wifiManager->getLastDestinationIdHex() + "\",";
-          postData += "\"full_packet_len\":" + String(cold_value) + ",";
-          postData += "\"signal_level_dbm\":" + String(m_wifiManager->getLastRssi()) + ",";
+          postData += "\"full_packet_len\":" + String(packet_len_value) + ",";
+          postData += "\"signal_level_dbm\":" + String(signal_level_dbm) + ",";
           postData += "\"cold\":" + String(received_count) + ",";
           postData += "\"hot\":" + String(sent_count);
           postData += "}";
@@ -331,7 +356,7 @@ void Control::loRaDataTask() {
                     "&alarm_time=" + String(alarm_value);
         }
 
-        ESP_LOGI(TAG, "Queueing POST request for LoRa packet");
+        ESP_LOGI(TAG, "Queueing POST request for LoRa packet (signal_level_dbm=%d)", signal_level_dbm);
         // Increment LoRa packets counter
         static_cast<WiFiManager*>(wifi_manager_global)->incrementLoraPacketsReceived();
         m_wifiManager->queuePostRequest(postData);
@@ -339,7 +364,10 @@ void Control::loRaDataTask() {
         if (post_on_lora && !POST_HOT_AS_RSSI) {
           hot_counter++;  // Increment only for counter mode
         }
+      } else {
+        ESP_LOGI(TAG, "POST trigger condition NOT met, skipping POST");
       }
+      ESP_LOGI(TAG, "=== POST TRIGGER DEBUG END ===");
 
       memset(buffer, 0, sizeof(buffer));
     }
@@ -569,6 +597,11 @@ void Control::interpretMessage(const char *buffer, bool relayMsgLoRa) {
       } else if (c_cmp(get_token, "password")) {
         String password = getWiFiPassword();
         m_serialCom->sendData(("password " + password + "\n").c_str());
+        return;
+      } else if (c_cmp(get_token, "send_post")) {
+        ESP_LOGI(TAG, "Manual POST trigger command received");
+        m_wifiManager->sendSinglePost();
+        m_serialCom->sendData("send_post: triggered\n");
         return;
     }
   } else if (token != nullptr && c_cmp(token, "status")) {
