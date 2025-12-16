@@ -333,12 +333,16 @@ void Control::loRaDataTask() {
 
         String postData;
         if (USE_FLASK_SERVER) {
+          // Для RECEIVER (DEVICE_TYPE=0) передаем длину LoRa пакета
+          // Для TEST_HTTP_POST (DEVICE_TYPE=2) передаем количество failed requests
+          long packet_len_value = (DEVICE_TYPE == 0) ? m_wifiManager->getLastLoRaPacketLen() : failed_count;
+
           postData = "{";
           postData += "\"user_id\":\"" + m_wifiManager->getUserId() + "\",";
           postData += "\"user_location\":\"" + m_wifiManager->getUserLocation() + "\",";
           postData += "\"sender_nodeid\":\"" + m_wifiManager->getLastSenderIdHex() + "\",";
           postData += "\"destination_nodeid\":\"" + m_wifiManager->getLastDestinationIdHex() + "\",";
-          postData += "\"full_packet_len\":" + String(failed_count) + ",";  // Failed requests count
+          postData += "\"full_packet_len\":" + String(packet_len_value) + ",";
           postData += "\"signal_level_dbm\":" + String(signal_level_dbm) + ",";
           postData += "\"cold\":" + String(received_count) + ",";
           postData += "\"hot\":" + String(sent_count);
