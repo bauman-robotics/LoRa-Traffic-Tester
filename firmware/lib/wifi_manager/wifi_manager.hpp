@@ -41,12 +41,19 @@ class WiFiManager {
   String getLastDestinationIdHex() const;
   int32_t getLastRssi() const { return loraRssi; }
   void sendSinglePost();
+  void sendInitialPost();
+  void sendPostAsync(const String& postData);
 
   // Statistics getters and incrementers
   unsigned long getLoraPacketsReceived() const { return loraPacketsReceived; }
   void incrementLoraPacketsReceived() { loraPacketsReceived++; }
   unsigned long getPostRequestsSent() const { return postRequestsSent; }
   void incrementPostRequestsSent() { postRequestsSent++; }
+  unsigned long getFailedRequests() const { return failedRequests; }
+  void incrementFailedRequests() { failedRequests++; }
+
+  // MAC address getter
+  String getMacAddress() const;
 
   // POST queue management
   void queuePostRequest(const String& postData);
@@ -74,7 +81,6 @@ class WiFiManager {
   void pingServer();
 
   String uint32ToHexString(uint32_t value) const;  // Convert uint32_t to 8-character hex string
-  String getNipIoUrl(String ip, int port, String path);  // Convert IP to nip.io format
 
   String ssid, password;
   String apiKey, userId, userLocation;
@@ -99,8 +105,19 @@ class WiFiManager {
   // Statistics counters
   volatile unsigned long loraPacketsReceived = 0;  // Total LoRa packets received
   volatile unsigned long postRequestsSent = 0;     // Total POST requests successfully sent
+  volatile unsigned long failedRequests = 0;       // Total POST requests failed
+
+  // Response time tracking
+  volatile unsigned long lastResponseTime = 0;     // Last response time in ms
+  volatile unsigned long avgResponseTime = 0;      // Average response time in ms
+  volatile unsigned long responseTimeCount = 0;    // Number of measurements for average
+  volatile unsigned long minResponseTime = 0;      // Minimum response time in ms
+  volatile unsigned long maxResponseTime = 0;      // Maximum response time in ms
+};
+
+// Global helper functions
+String getNipIoUrl(String ip, int port, String path);  // Convert IP to nip.io format
 
 #if WIFI_DEBUG_FIXES
-  static void WiFiEvent(WiFiEvent_t event);
+void WiFiEvent(WiFiEvent_t event);
 #endif
-};

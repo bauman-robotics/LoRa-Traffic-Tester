@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-Build script for LoRa Transceiver project using PlatformIO.
-Creates build and bin directories, compiles the project, and copies the firmware binary.
+Erase, build and upload script for LoRa Transceiver project using PlatformIO.
+Erases the entire flash memory, builds the project, and uploads the firmware binary.
+WARNING: This will erase all data including LittleFS, WiFi credentials, and configuration!
 """
 
 import os
@@ -31,6 +32,16 @@ def check_pio(env=None):
         return True
     except (subprocess.CalledProcessError, FileNotFoundError):
         return False
+
+def find_serial_port():
+    """Find available serial ports (only ttyACM0)."""
+    port = '/dev/ttyACM0'
+    if os.path.exists(port):
+        print(f"Found ACM port: {port}")
+        return port
+    else:
+        print("ACM port /dev/ttyACM0 not found. Please connect the ESP32 board.")
+        return None
 
 def load_config():
     """Load configuration from config.json."""
@@ -112,7 +123,15 @@ def main():
     bin_dir = os.path.join(script_dir, 'bin')
     os.makedirs(bin_dir, exist_ok=True)
 
-    print("Building LoRa Transceiver project...")
+    print("FLASH ERASE, BUILD AND UPLOAD MODE")
+    print("WARNING: This will erase ALL data from ESP32 flash memory!")
+    print("This includes:")
+    print("- LittleFS filesystem (WiFi credentials, configuration)")
+    print("- NVS storage (system settings)")
+    print("- All user data")
+    print("")
+
+    print("Proceeding with flash erase, build and upload...")
 
     # Use PlatformIO with venv environment
     if not check_pio(env=env):
@@ -130,11 +149,26 @@ def main():
             print("source venv/bin/activate && pip install platformio")
             sys.exit(1)
 
-    build_cmd = 'pio run'
-    build_cwd = project_root
+    # Find serial port
+    port = find_serial_port()
+    if not port:
+        print("No serial port found. Please connect the ESP32 board.")
+        sys.exit(1)
 
-    # Run build with venv
-    if not run_command(build_cmd, cwd=build_cwd, env=env):
+    print(f"Using port: {port}")
+
+    # Step 1: Erase flash
+    print("Step 1: Erasing flash memory...")
+    erase_cmd = 'pio run --target erase'
+    if not run_command(erase_cmd, cwd=project_root, env=env):
+        print("Flash erase failed!")
+        sys.exit(1)
+    print("Flash erase completed.")
+
+    # Step 2: Build project
+    print("Step 2: Building project...")
+    build_cmd = 'pio run'
+    if not run_command(build_cmd, cwd=project_root, env=env):
         print("Build failed!")
         sys.exit(1)
 
@@ -157,7 +191,16 @@ def main():
                     shutil.copy2(firmware_elf, dest_elf)
                     print(f"Copied ELF to {dest_elf}")
 
-    print("Build completed successfully!")
+    # Step 3: Upload firmware
+    print("Step 3: Uploading firmware...")
+    upload_cmd = f'pio run --target upload --upload-port {port}'
+    if not run_command(upload_cmd, cwd=project_root, env=env):
+        print("Upload failed!")
+        sys.exit(1)
+
+    print("Flash erase, build and upload completed successfully!")
+    print("All flash memory has been erased and new firmware uploaded.")
+    print("Device will start with factory defaults.")
     print(f"Binaries are in: {bin_dir}")
 
     # Print diagnostic information

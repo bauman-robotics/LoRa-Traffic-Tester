@@ -14,84 +14,88 @@
 #define LORA_MOSI (7)
 #define LORA_CS   (8)
 
-// LoRa default settings (compatible with E80 module)
+// Настройки LoRa по умолчанию (совместимы с модулем E80)
 #define LORA_FREQUENCY 869.075f
 #define LORA_POWER 20
 
-// Simulation mode: if 1, skip hardware LoRa initialization and use fake mode
+// Режим симуляции: если 1, пропустить инициализацию аппаратного LoRa и использовать фейковый режим
 #define FAKE_LORA 0
 
-// Status sending interval (can be changed via commands)
+// Интервал отправки статусов (можно изменить через команды)
 extern unsigned long status_Interval;
 
-// WiFi configuration
-#define WIFI_ENABLE 1  // Enable WiFi functionality (runtime control via GUI)
-#define WIFI_USE_CUSTOM_MAC 0  // Use custom random MAC address for WiFi (0=use ESP default, 1=generate random)
-#define WIFI_USE_FIXED_MAC 0  // If 1, use fixed MAC address specified below
-//#define WIFI_FIXED_MAC_ADDRESS {0x1c, 0xdb, 0xd4, 0xc6, 0x77, 0xf0}  // Fixed MAC address bytes (used if WIFI_USE_FIXED_MAC=1)
-#define WIFI_FIXED_MAC_ADDRESS {0x1c, 0xdb, 0xd4, 0xC3, 0xC9, 0xD4} 
-#define WIFI_CONNECT_ATTEMPTS 5  // Number of WiFi connection attempts
-#define WIFI_CONNECT_INTERVAL_MS 5000  // Interval between connection attempts
-//#define WIFI_CONNECT_INTERVAL_MS 10000  // Test Interval between connection attempts
-#define WIFI_DEBUG_FIXES 1  // Enable WiFi debug fixes and scan (set to 1 for ESP32-C3 supermini with issues)
-#define WIFI_AUTO_TX_POWER_TEST 0    // Enable automatic testing of different TX power levels (0=use WIFI_TX_POWER_VARIANT, 1=auto test)
-#define WIFI_ATTEMPTS_PER_VARIANT 2  // Number of attempts per TX power variant in auto test
+// Конфигурация WiFi
+#define WIFI_ENABLE 1  // Включить функционал WiFi (управление во время выполнения через GUI)
+#define WIFI_USE_CUSTOM_MAC 0  // Использовать кастомный случайный MAC адрес для WiFi (0=использовать ESP по умолчанию, 1=генерировать случайный)
+#define WIFI_USE_FIXED_MAC 0  // Если 1, использовать фиксированный MAC адрес указанный ниже
+//#define WIFI_FIXED_MAC_ADDRESS {0x1c, 0xdb, 0xd4, 0xc6, 0x77, 0xf0}  // Байты фиксированного MAC адреса (используется если WIFI_USE_FIXED_MAC=1)
+#define WIFI_FIXED_MAC_ADDRESS {0x1c, 0xdb, 0xd4, 0xC3, 0xC9, 0xD4}
+#define WIFI_CONNECT_ATTEMPTS 5  // Количество попыток подключения к WiFi
+#define WIFI_CONNECT_INTERVAL_MS 5000  // Интервал между попытками подключения
+//#define WIFI_CONNECT_INTERVAL_MS 10000  // Тестовый интервал между попытками подключения
+#define WIFI_DEBUG_FIXES 1  // Включить исправления отладки WiFi и сканирование (установить 1 для ESP32-C3 supermini с проблемами)
+#define WIFI_AUTO_TX_POWER_TEST 0    // Включить автоматическое тестирование разных уровней мощности TX (0=использовать WIFI_TX_POWER_VARIANT, 1=авто тест)
+#define WIFI_ATTEMPTS_PER_VARIANT 2  // Количество попыток на вариант мощности TX в авто тесте
 
-// Network settings included from lib/network_definitions.h or fallback
-// Edit lib/network_definitions.h to change settings at compile time
-// If no main file, edit lib/fake_network_definitions.h instead
+// Настройки сети включены из lib/network_definitions.h или резервные
+// Редактируйте lib/network_definitions.h чтобы изменить настройки во время компиляции
+// Если основного файла нет, редактируйте lib/fake_network_definitions.h вместо этого
 
 #define USE_SYSTEM_NETWORK
 
 #ifdef USE_SYSTEM_NETWORK
 #include "../../../network_definitions.h"
 #else
-#include "fake_network_definitions.h"  // Fallback defaults
+#include "fake_network_definitions.h"  // Резервные значения по умолчанию
 #endif
 
-#define USE_HTTPS 0  // If 1, use HTTPS for server communication; if 0, use HTTP
+#define USE_HTTPS 1  // Если 1, использовать HTTPS для связи с сервером; если 0, использовать HTTP
 #define USE_INSECURE_HTTPS 1  // Если 1, пропустить проверку SSL сертификатов (эквивалент curl -k); если 0, проверять сертификаты
-#define POST_BATCH_ENABLED 1  // Enable sending multiple LoRa packets in one POST request (batch mode)
+#define POST_BATCH_ENABLED 1  // Включить отправку нескольких LoRa пакетов в одном POST запросе (пакетный режим)
 
 
-#define POST_INTERVAL_EN 0  // Enable periodic POST requests (can be controlled via GUI)
-#define POST_EN_WHEN_LORA_RECEIVED 1  // Send POST only when LoRa packet received
-#define POST_HOT_AS_RSSI 1  // If 1, use RSSI as hot parameter when POST triggered by LoRa receive; if 0, use successful POST count
-#define POST_SEND_SENDER_ID_AS_ALARM_TIME 1  // If 1, use sender ID as alarm time instead of ALARM_TIME + random
-#define OLD_LORA_PARS 0  // If 1, use old packet parsing (alarm_time=00), if 0, use new Meshtastic header parsing  === 1 ========================================
-#define PARSE_SENDER_ID_FROM_LORA_PACKETS 1  // If 1, parse sender_id from LoRa packet header when packet length > 7 bytes, use 1 otherwise === 2 ========================================
-#define USE_FLASK_SERVER 1  // If 1, use Flask server (84.252.143.212:5001); if 0, use PHP server (default)
+#define POST_INTERVAL_EN 0  // Включить периодические POST запросы (можно управлять через GUI)
+#define POST_EN_WHEN_LORA_RECEIVED 1  // Отправлять POST только при получении LoRa пакета
+#define POST_HOT_AS_RSSI 1  // Если 1, использовать RSSI как hot параметр при POST triggered LoRa receive; если 0, использовать счетчик успешных POST
+#define POST_SEND_SENDER_ID_AS_ALARM_TIME 1  // Если 1, использовать sender ID как alarm time вместо ALARM_TIME + random
+#define OLD_LORA_PARS 0  // Если 1, использовать старый парсинг пакетов (alarm_time=00), если 0, использовать новый Meshtastic header парсинг  === 1 ========================================
+#define PARSE_SENDER_ID_FROM_LORA_PACKETS 1  // Если 1, парсить sender_id из LoRa packet header когда длина пакета > 7 байт, использовать 1 иначе === 2 ========================================
+#define USE_FLASK_SERVER 1  // Если 1, использовать Flask сервер (84.252.143.212:5001); если 0, использовать PHP сервер (по умолчанию)
 
-#define SERVER_PING_ENABLED 0  // Enable periodic ping of the server
-#define POST_INTERVAL_MS 10000  // Interval between POST requests in ms (if enabled)
-#define PING_INTERVAL_MS 5000  // Interval between ping in ms
-#define HOT_WATER 0  // Default value for hot water field
-#define ALARM_TIME 200  // Alarm time field
+#define SERVER_PING_ENABLED 0  // Включить периодический ping сервера
+#define POST_INTERVAL_MS 10000  // Интервал между POST запросами в мс (если включено)
+#define PING_INTERVAL_MS 5000  // Интервал между ping в мс
+#define SERVER_CONNECTION_TIMEOUT_MS 5000  // Таймаут на установление соединения с сервером
+#define WIFI_POST_DELAY_MS 10000  // Задержка после подключения WiFi перед отправкой initial POST
+#define POST_RESPONSE_INITIAL_DELAY_MS 1000  // Начальная задержка перед ожиданием ответа сервера
+#define POST_RESPONSE_TOTAL_TIMEOUT_MS 8000  // Общий таймаут ожидания ответа сервера
+#define HOT_WATER 0  // Значение по умолчанию для поля hot water
+#define ALARM_TIME 200  // Поле alarm time
 
-// Initial value for cold water counter
+// Начальное значение счетчика cold water
 #define COLD_INITIAL 1
 
-// Periodic LoRa status sending settings
-#define LORA_STATUS_ENABLED 0  // Enable/disable periodic LoRa status packets
-#define LORA_STATUS_INTERVAL_SEC 10  // Default interval for LoRa status packets in seconds
-#define LORA_STATUS_SHORT_PACKETS 1  // 0=full packet, 1=short 2-byte counter
+// Настройки периодической отправки LoRa статусов
+#define LORA_STATUS_ENABLED 0  // Включить/отключить периодические LoRa статус пакеты
+#define LORA_STATUS_INTERVAL_SEC 10  // Интервал по умолчанию для LoRa статус пакетов в секундах
+#define LORA_STATUS_SHORT_PACKETS 1  // 0=полный пакет, 1=короткий 2-байтовый счетчик
 
-// Mesh compatibility
-#define MESH_COMPATIBLE 1  // If 1, set BW/SF/CR/sync to match Meshtastic SHORT_FAST for receiving their packets
-#define MESH_SYNC_WORD 0x2B  // Private Meshtastic sync word
-#define MESH_FREQUENCY 869.075f  // Frequency to use for Mesh compatibility
-#define MESH_BANDWIDTH 250  // Bandwidth for Mesh (original narrow)
-#define MESH_SPREADING_FACTOR 11  // SF for Mesh (matched to Meshtastic for trace packets)
-#define MESH_CODING_RATE 5  // CR for Mesh
+// Совместимость с Mesh
+#define MESH_COMPATIBLE 1  // Если 1, установить BW/SF/CR/sync для соответствия Meshtastic SHORT_FAST при приеме их пакетов
+#define MESH_SYNC_WORD 0x2B  // Приватное Meshtastic sync слово
+#define MESH_FREQUENCY 869.075f  // Частота для использования Mesh совместимости
+#define MESH_BANDWIDTH 250  // Полоса для Mesh (оригинально узкая)
+#define MESH_SPREADING_FACTOR 11  // SF для Mesh (сопоставлено с Meshtastic для trace пакетов)
+#define MESH_CODING_RATE 5  // CR для Mesh
 
-// Reception mode selection
-#define DUTY_CYCLE_RECEPTION 1  // If 1, use Meshtastic-style duty cycle reception (energy efficient); if 0, use continuous receive (for traffic testing)
+// Выбор режима приема
+#define DUTY_CYCLE_RECEPTION 1  // Если 1, использовать Meshtastic-style duty cycle reception (энергоэффективный); если 0, использовать continuous receive (для тестирования трафика)
 
 
-// If 1, send LoRa packet payload length as cold value in POST request (when POST_EN_WHEN_LORA_RECEIVED=1)
+// Если 1, отправлять длину LoRa packet payload как cold value в POST запросе (когда POST_EN_WHEN_LORA_RECEIVED=1)
 #define COLD_AS_LORA_PAYLOAD_LEN 1
 
-// Counter for cold water (will be incremented)
+// Счетчик для cold water (будет инкрементироваться)
 extern unsigned long cold_counter;
 
 #define WIFI_TX_POWER_VARIANT 7  // Variant for TX power testing (0-9 for different levels)
@@ -127,15 +131,22 @@ extern unsigned long cold_counter;
 // Установите DEVICE_TYPE:
 // 0 = RECEIVER - устройство для приема и передачи данных по WiFi
 // 1 = TRANSMITTER - устройство только для передачи LoRa статусов
-#define DEVICE_TYPE_TRANSMITTER 0  // 0=приемник, 1=передатчик
+// 2 = TEST_POST_TRANSMITTER - Передача тестовых пакетов на сервер через заданный промежуток времени. 
 
-#if DEVICE_TYPE_TRANSMITTER == 0  // RECEIVER - устройство для приема данных и передачи по WiFi
+#define DEVICE_TYPE_LORA_RECEIVER 0
+#define DEVICE_TYPE_LORA_TRANSMITTER 1
+#define DEVICE_TYPE_TEST_HTTP_POST 2
+
+#define DEVICE_TYPE 0  // 0=приемник, 1=передатчик
+
+#if DEVICE_TYPE == 0  // RECEIVER - устройство для приема данных и передачи по WiFi
     #define WIFI_ENABLE 1
     #define POST_EN_WHEN_LORA_RECEIVED 1
     #define LORA_STATUS_ENABLED 0
-    // Остальные настройки остаются дефолтными как в начале файла
+    #define POST_INTERVAL_EN 0
+    #define FAKE_LORA 0
 
-#elif DEVICE_TYPE_TRANSMITTER == 1  // TRANSMITTER - устройство для передачи LoRa статусов
+#elif DEVICE_TYPE == 1  // TRANSMITTER - устройство для передачи LoRa статусов
     #define WIFI_ENABLE 0
     #define POST_EN_WHEN_LORA_RECEIVED 0
     #define LORA_STATUS_ENABLED 1
@@ -143,6 +154,12 @@ extern unsigned long cold_counter;
     #define POST_INTERVAL_EN 0
     #define WIFI_DEBUG_FIXES 0
     #define WIFI_AUTO_TX_POWER_TEST 0
+
+#elif DEVICE_TYPE == 2  // TRANSMITTER - устройство для передачи test пакетов
+    #define WIFI_ENABLE 1
+    #define POST_EN_WHEN_LORA_RECEIVED 0
+    #define LORA_STATUS_ENABLED 0
+    #define POST_INTERVAL_EN 1
 
 #else
     #error "Invalid DEVICE_TYPE. Must be 0 (RECEIVER) or 1 (TRANSMITTER)"
